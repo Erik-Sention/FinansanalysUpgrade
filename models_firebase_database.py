@@ -16,7 +16,7 @@ from pathlib import Path
 import streamlit as st
 
 # Försök ladda från .env först (för lokal utveckling)
-env_path = Path(__file__).parent.parent.parent / '.env'
+env_path = Path(__file__).parent / '.env'
 load_dotenv(env_path)
 
 def get_env_var(key: str) -> str:

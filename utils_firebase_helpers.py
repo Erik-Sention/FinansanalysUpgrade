@@ -8,7 +8,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from models.firebase_database import get_firebase_db
+from models_firebase_database import get_firebase_db
 
 def get_companies() -> List[Dict]:
     """Hämta alla företag"""

@@ -13,11 +13,11 @@ src_path = project_root / "src"
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(src_path))
 
-from utils.firebase_helpers import (
+from utils_firebase_helpers import (
     get_companies, get_years_for_company, get_financial_data, 
     get_account_categories, get_company_by_id
 )
-from models.firebase_database import get_firebase_db
+from models_firebase_database import get_firebase_db
 
 def get_financial_data_with_categories(company_id, year):
     """Hämta finansiell data med kategorier för företag och år"""
