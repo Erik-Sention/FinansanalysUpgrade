@@ -3,10 +3,19 @@ Datavisualisering med linjediagram för budget vs faktiska värden
 """
 import streamlit as st
 import pandas as pd
+import sys
+from pathlib import Path
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime
+
+# Path setup för både lokal och Streamlit Cloud deployment
+project_root = Path(__file__).parent.parent.parent
+src_path = project_root / "src"
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(src_path))
+
 from utils.firebase_helpers import (
     get_companies, get_years_for_company, get_financial_data, 
     get_account_categories, get_company_by_id

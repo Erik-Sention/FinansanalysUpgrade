@@ -5,8 +5,10 @@ import streamlit as st
 import sys
 from pathlib import Path
 
-# Lägg till src-mappen i path
-src_path = Path(__file__).parent.parent
+# Path setup för både lokal och Streamlit Cloud deployment
+project_root = Path(__file__).parent.parent.parent
+src_path = project_root / "src"
+sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(src_path))
 
 from utils.auth import get_auth
