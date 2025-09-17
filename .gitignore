@@ -1,0 +1,74 @@
+# Miljövariabler och secrets
+.env
+env.local
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Databaser
+*.db
+*.sqlite
+*.sqlite3
+data/app.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Streamlit
+.streamlit/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Excel temp files
+~$*.xlsx
+~$*.xls
+
+# Logs
+*.log
+logs/
+
+# Firebase service account (om du skulle skapa sådan)
+*service-account*.json
+firebase-service-account.json
