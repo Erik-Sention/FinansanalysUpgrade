@@ -165,6 +165,55 @@ class FirebaseDB:
             print(f"Error getting budget values: {e}")
             return {}
 
+    def create_budget(self, company_id: str, year: int, name: str) -> str:
+        """Skapa ny budget"""
+        try:
+            budget_data = {
+                "company_id": company_id,
+                "year": year,
+                "name": name,
+                "created_at": datetime.now().isoformat(),
+                "updated_at": datetime.now().isoformat()
+            }
+            
+            budgets_ref = self.get_ref("budgets")
+            new_budget_ref = budgets_ref.push(budget_data)
+            return new_budget_ref['name']  # Pyrebase returnerar {'name': 'key'}
+        except Exception as e:
+            print(f"Error creating budget: {e}")
+            raise
+
+    def update_budget_value(self, budget_id: str, account_id: str, month: int, amount: float) -> str:
+        """Uppdatera eller skapa budgetvärde"""
+        try:
+            value_data = {
+                "budget_id": budget_id,
+                "account_id": account_id,
+                "month": month,
+                "amount": amount,
+                "updated_at": datetime.now().isoformat()
+            }
+            
+            # Hitta befintligt värde eller skapa nytt
+            budget_values_ref = self.get_ref("budget_values")
+            existing_data = budget_values_ref.get()
+            existing_values = existing_data.val() if existing_data.val() else {}
+            
+            for key, value in existing_values.items():
+                if (value.get("budget_id") == budget_id and 
+                    value.get("account_id") == account_id and 
+                    value.get("month") == month):
+                    # Uppdatera befintligt värde
+                    budget_values_ref.child(key).update(value_data)
+                    return key
+            
+            # Skapa nytt värde
+            new_value_ref = budget_values_ref.push(value_data)
+            return new_value_ref['name']  # Pyrebase returnerar {'name': 'key'}
+        except Exception as e:
+            print(f"Error updating budget value: {e}")
+            raise
+
 # Global instans
 def get_firebase_db():
     """Hämta Firebase databas instans"""
