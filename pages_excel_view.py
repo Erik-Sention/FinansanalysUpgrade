@@ -85,12 +85,14 @@ def get_budget_data(company_id, year):
         target_budget = None
         latest_date = None
         
-        for budget_id, budget_data in budgets.items():
-            if budget_data.get('year') == year:
-                updated_at = budget_data.get('updated_at', budget_data.get('created_at'))
-                if latest_date is None or updated_at > latest_date:
-                    latest_date = updated_at
-                    target_budget = (budget_id, budget_data)
+        # Säker hantering av budgets dict
+        if budgets and isinstance(budgets, dict):
+            for budget_id, budget_data in budgets.items():
+                if budget_data and budget_data.get('year') == year:
+                    updated_at = budget_data.get('updated_at', budget_data.get('created_at'))
+                    if latest_date is None or updated_at > latest_date:
+                        latest_date = updated_at
+                        target_budget = (budget_id, budget_data)
         
         if not target_budget:
             return pd.DataFrame()
@@ -100,26 +102,32 @@ def get_budget_data(company_id, year):
         # Hämta budgetvärden för denna budget
         budget_values = firebase_db.get_budget_values(budget_id)
         
+        # Debug: visa vad vi fick från budget_values
+        st.write(f"🔍 Debug - budget_values typ: {type(budget_values)}")
+        st.write(f"🔍 Debug - budget_values innehåll: {budget_values}")
+        
         # Hämta referensdata
         accounts = firebase_db.get_accounts()
         categories = firebase_db.get_account_categories()
         
-        # Bygg DataFrame
+        # Bygg DataFrame - säker hantering av budget_values
         data = []
-        for value_data in budget_values.values():
-            account_id = value_data.get('account_id')
-            account_data = accounts.get(account_id, {})
-            
-            category_id = account_data.get('category_id')
-            category_data = categories.get(category_id, {})
-            
-            data.append({
-                'account_name': account_data.get('name', ''),
-                'category': category_data.get('name', ''),
-                'month': value_data.get('month'),
-                'amount': value_data.get('amount', 0),
-                'account_id': account_id
-            })
+        if budget_values and isinstance(budget_values, dict):
+            for value_data in budget_values.values():
+                if value_data and isinstance(value_data, dict):
+                    account_id = value_data.get('account_id')
+                    account_data = accounts.get(account_id, {})
+                    
+                    category_id = account_data.get('category_id')
+                    category_data = categories.get(category_id, {})
+                    
+                    data.append({
+                        'account_name': account_data.get('name', ''),
+                        'category': category_data.get('name', ''),
+                        'month': value_data.get('month'),
+                        'amount': value_data.get('amount', 0),
+                        'account_id': account_id
+                    })
         
         df = pd.DataFrame(data)
         
