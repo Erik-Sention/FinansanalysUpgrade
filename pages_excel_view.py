@@ -239,13 +239,19 @@ def save_budget(company_id, year, budget_updates):
         if not target_budget_id:
             target_budget_id = firebase_db.create_budget(company_id, year, f"Budget {year}")
         
+        # Debug: visa vad som ska sparas
+        st.write(f"🔍 DEBUG: Sparar för budget_id: {target_budget_id}")
+        st.write(f"🔍 DEBUG: Budget updates: {budget_updates}")
+        
         # Spara bara de värden som skickats in
         saved_count = 0
         for account_id, months_data in budget_updates.items():
             for month, amount in months_data.items():
                 try:
-                    firebase_db.update_budget_value(target_budget_id, account_id, month, float(amount))
+                    # Använd account_id som string (Firebase använder string-IDs)
+                    firebase_db.update_budget_value(target_budget_id, str(account_id), int(month), float(amount))
                     saved_count += 1
+                    st.write(f"✅ Sparade: konto {account_id}, månad {month}, belopp {amount}")
                 except Exception as e:
                     st.error(f"❌ Fel vid sparande: {e}")
         
