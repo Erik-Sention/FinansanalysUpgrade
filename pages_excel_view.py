@@ -102,10 +102,6 @@ def get_budget_data(company_id, year):
         # Hämta budgetvärden för denna budget
         budget_values = firebase_db.get_budget_values(budget_id)
         
-        # Debug: visa vad vi fick från budget_values
-        st.write(f"🔍 Debug - budget_values typ: {type(budget_values)}")
-        st.write(f"🔍 Debug - budget_values innehåll: {budget_values}")
-        
         # Hämta referensdata
         accounts = firebase_db.get_accounts()
         categories = firebase_db.get_account_categories()
@@ -252,15 +248,8 @@ def save_budget(company_id, year, budget_updates):
             # Skapa ny budget
             target_budget_id = firebase_db.create_budget(company_id, year, f"Budget {year}")
         
-        # Debug: visa vad som ska sparas
+        # Spara budget
         saved_count = 0
-        st.write(f"💾 Sparar budget för {len(budget_updates)} konton till budget_id: {target_budget_id}")
-        
-        # Debug: visa vilka konton som ska sparas
-        for account_id, months_data in budget_updates.items():
-            non_zero_months = {m: v for m, v in months_data.items() if v != 0}
-            if non_zero_months:
-                st.write(f"   Konto {account_id}: {len(non_zero_months)} månader med värden")
         
         # Ta bort alla befintliga budget-värden för denna budget först
         budget_values_ref = firebase_db.get_ref("budget_values")
@@ -279,18 +268,12 @@ def save_budget(company_id, year, budget_updates):
             for month, amount in months_data.items():
                 try:
                     # Lägg till nytt värde (även om det är 0 för fullständighet)
-                    value_id = firebase_db.update_budget_value(target_budget_id, account_id, month, float(amount))
+                    firebase_db.update_budget_value(target_budget_id, account_id, month, float(amount))
                     saved_count += 1
-                    st.write(f"   💾 Sparade: konto {account_id}, månad {month}, värde {amount} → ID: {value_id}")
                 except Exception as e:
                     st.error(f"❌ Fel vid sparande av värde: {e}")
         
-        st.success(f"✅ Budget sparad! {saved_count} värden sparade för budget_id: {target_budget_id}")
-        
-        # Kontrollera att det verkligen sparades
-        saved_budget_values = firebase_db.get_budget_values(target_budget_id)
-        st.write(f"🔍 Verifiering: {len(saved_budget_values)} värden finns nu i databasen för budget {target_budget_id}")
-        
+        st.success(f"✅ Budget sparad! {saved_count} värden sparade.")
         return True
     except Exception as e:
         st.error(f"❌ Fel vid sparande av budget: {e}")
