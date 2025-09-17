@@ -35,6 +35,18 @@ def safe_import():
         if path not in sys.path:
             sys.path.insert(0, path)
     
+    # Fix för pkg_resources problem
+    try:
+        import pkg_resources
+    except ImportError:
+        # Fallback för Python 3.13+ där pkg_resources saknas
+        import importlib.metadata as pkg_resources
+        import sys
+        if not hasattr(pkg_resources, 'get_distribution'):
+            # Monkey patch för kompatibilitet
+            pkg_resources.get_distribution = lambda name: type('Distribution', (), {'version': '1.0.0'})()
+        sys.modules['pkg_resources'] = pkg_resources
+    
     # Prova flera olika import-strategier
     try:
         # Strategi 1: Absolut import med src prefix

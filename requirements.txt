@@ -7,3 +7,4 @@ pyrebase4>=4.7.1
 python-dotenv>=1.0.0
 streamlit-authenticator>=0.2.3
 bcrypt>=4.0.1
+setuptools>=65.0.0
