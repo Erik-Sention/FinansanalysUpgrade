@@ -184,39 +184,66 @@ def update_account_category(account_id, new_category_id):
         return False
 
 def create_excel_table_with_categories(actual_df, budget_df):
-    """Skapa Excel-liknande tabell med kategorival"""
+    """Skapa Excel-liknande tabell med kategorival - inkluderar både faktisk och budget-data"""
     month_names = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 
                    'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
     
     result_data = []
     
-    # Hämta alla unika konton och kategorier
-    if not actual_df.empty:
-        unique_accounts = actual_df[['account_name', 'category', 'account_id', 'category_id']].drop_duplicates()
-        
-        for _, account_info in unique_accounts.iterrows():
-            account = account_info['account_name']
-            category = account_info['category']
-            account_id = account_info['account_id']
-            category_id = account_info['category_id']
-            
-            row = {
-                'account': account, 
-                'category': category,
-                'account_id': account_id,
-                'category_id': category_id
-            }
-            
-            # Faktiska värden
-            account_data = actual_df[actual_df['account_name'] == account]
-            for i, month in enumerate(month_names, 1):
-                month_data = account_data[account_data['month'] == i]
-                value = month_data['amount'].sum() if len(month_data) > 0 else 0
-                row[month] = value
-            
-            result_data.append(row)
+    # Kombinera alla unika konton från både faktisk och budget-data
+    all_accounts = set()
     
-    return pd.DataFrame(result_data)
+    if not actual_df.empty:
+        for _, row in actual_df[['account_name', 'category', 'account_id', 'category_id']].drop_duplicates().iterrows():
+            all_accounts.add((row['account_id'], row['account_name'], row['category'], row['category_id']))
+    
+    if not budget_df.empty:
+        for _, row in budget_df[['account_name', 'category', 'account_id']].drop_duplicates().iterrows():
+            # För budget_df saknas category_id, så vi behöver hitta det
+            if not actual_df.empty:
+                matching_actual = actual_df[actual_df['account_id'] == row['account_id']]
+                if not matching_actual.empty:
+                    category_id = matching_actual['category_id'].iloc[0]
+                    all_accounts.add((row['account_id'], row['account_name'], row['category'], category_id))
+                else:
+                    all_accounts.add((row['account_id'], row['account_name'], row['category'], 'unknown'))
+            else:
+                all_accounts.add((row['account_id'], row['account_name'], row['category'], 'unknown'))
+    
+    # Skapa tabellrader för alla konton
+    for account_id, account_name, category, category_id in all_accounts:
+        row = {
+            'account': account_name, 
+            'category': category,
+            'account_id': account_id,
+            'category_id': category_id
+        }
+        
+        # Faktiska värden och budget-värden för varje månad
+        for i, month in enumerate(month_names, 1):
+            # Faktisk data
+            actual_value = 0
+            if not actual_df.empty:
+                actual_data = actual_df[(actual_df['account_id'] == account_id) & (actual_df['month'] == i)]
+                actual_value = actual_data['amount'].sum() if len(actual_data) > 0 else 0
+            
+            # Budget-data - visa budget om ingen faktisk data finns, annars visa faktisk
+            budget_value = 0
+            if not budget_df.empty:
+                budget_data = budget_df[(budget_df['account_id'] == account_id) & (budget_df['month'] == i)]
+                budget_value = budget_data['amount'].sum() if len(budget_data) > 0 else 0
+            
+            # Visa faktisk data om den finns, annars budget-data
+            display_value = actual_value if actual_value != 0 else budget_value
+            row[month] = display_value
+        
+        result_data.append(row)
+    
+    df = pd.DataFrame(result_data)
+    if not df.empty:
+        df = df.sort_values(['category', 'account'])
+    
+    return df
 
 def save_budget(company_id, year, budget_updates):
     """Spara budget till databasen"""
