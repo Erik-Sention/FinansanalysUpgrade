@@ -102,6 +102,10 @@ def get_budget_data(company_id, year):
         # Hämta budgetvärden för denna budget
         budget_values = firebase_db.get_budget_values(budget_id)
         
+        print(f"🔥 GET_BUDGET_DATA: budget_id={budget_id}")
+        print(f"🔥 GET_BUDGET_DATA: budget_values typ={type(budget_values)}")
+        print(f"🔥 GET_BUDGET_DATA: budget_values längd={len(budget_values) if budget_values else 0}")
+        
         # Hämta referensdata
         accounts = firebase_db.get_accounts()
         categories = firebase_db.get_account_categories()
@@ -109,13 +113,16 @@ def get_budget_data(company_id, year):
         # Bygg DataFrame - säker hantering av budget_values
         data = []
         if budget_values and isinstance(budget_values, dict):
-            for value_data in budget_values.values():
+            print(f"🔥 GET_BUDGET_DATA: Itererar över {len(budget_values)} budget_values")
+            for key, value_data in budget_values.items():
                 if value_data and isinstance(value_data, dict):
                     account_id = value_data.get('account_id')
                     account_data = accounts.get(account_id, {})
                     
                     category_id = account_data.get('category_id')
                     category_data = categories.get(category_id, {})
+                    
+                    print(f"🔥 BUDGET VALUE: {key} -> {value_data}")
                     
                     data.append({
                         'account_name': account_data.get('name', ''),
@@ -129,6 +136,8 @@ def get_budget_data(company_id, year):
         
         if not df.empty:
             df = df.sort_values(['category', 'account_name', 'month'])
+        
+        print(f"🔥 GET_BUDGET_DATA: Slutliga DataFrame har {len(df)} rader")
         
         # Visa vilken budget som används med korrekt antal
         budget_count = len(budget_values) if budget_values else 0

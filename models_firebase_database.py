@@ -194,6 +194,8 @@ class FirebaseDB:
                 "updated_at": datetime.now().isoformat()
             }
             
+            print(f"🔥 SPARAR BUDGET VALUE: {value_data}")
+            
             # Hitta befintligt värde eller skapa nytt
             budget_values_ref = self.get_ref("budget_values")
             existing_data = budget_values_ref.get()
@@ -206,7 +208,10 @@ class FirebaseDB:
                 if not isinstance(existing_values, dict):
                     existing_values = {}
             
+            print(f"🔥 EXISTING VALUES COUNT: {len(existing_values) if existing_values else 0}")
+            
             # Sök efter befintligt värde
+            found_existing = False
             if existing_values:
                 for key, value in existing_values.items():
                     if (value and isinstance(value, dict) and
@@ -215,11 +220,17 @@ class FirebaseDB:
                         value.get("month") == month):
                         # Uppdatera befintligt värde
                         budget_values_ref.child(key).update(value_data)
+                        print(f"🔥 UPPDATERADE BEFINTLIGT: key={key}")
+                        found_existing = True
                         return key
             
-            # Skapa nytt värde
-            new_value_ref = budget_values_ref.push(value_data)
-            return new_value_ref['name']  # Pyrebase returnerar {'name': 'key'}
+            if not found_existing:
+                # Skapa nytt värde
+                new_value_ref = budget_values_ref.push(value_data)
+                new_key = new_value_ref['name']
+                print(f"🔥 SKAPADE NYTT: key={new_key}")
+                return new_key
+                
         except Exception as e:
             print(f"Error updating budget value: {e}")
             print(f"Debug - existing_data type: {type(existing_data) if 'existing_data' in locals() else 'Not set'}")
