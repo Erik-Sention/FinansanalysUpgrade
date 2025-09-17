@@ -225,12 +225,14 @@ def save_budget(company_id, year, budget_updates):
         target_budget_id = None
         latest_date = None
         
-        for budget_id, budget_data in budgets.items():
-            if budget_data.get('year') == year:
-                updated_at = budget_data.get('updated_at', budget_data.get('created_at'))
-                if latest_date is None or updated_at > latest_date:
-                    latest_date = updated_at
-                    target_budget_id = budget_id
+        # Säker hantering av budgets som kan vara PyreResponse
+        if budgets and isinstance(budgets, dict):
+            for budget_id, budget_data in budgets.items():
+                if budget_data and budget_data.get('year') == year:
+                    updated_at = budget_data.get('updated_at', budget_data.get('created_at'))
+                    if latest_date is None or updated_at > latest_date:
+                        latest_date = updated_at
+                        target_budget_id = budget_id
         
         if target_budget_id:
             # Uppdatera befintlig budget
@@ -254,11 +256,14 @@ def save_budget(company_id, year, budget_updates):
         
         # Ta bort alla befintliga budget-värden för denna budget först
         budget_values_ref = firebase_db.get_ref("budget_values")
-        existing_values = budget_values_ref.get() or {}
+        existing_data = budget_values_ref.get()
+        existing_values = existing_data.val() if existing_data and existing_data.val() else {}
         
-        for value_id, value_data in existing_values.items():
-            if value_data.get("budget_id") == target_budget_id:
-                budget_values_ref.child(value_id).delete()
+        # Säker hantering av existing_values
+        if existing_values and isinstance(existing_values, dict):
+            for value_id, value_data in existing_values.items():
+                if value_data and value_data.get("budget_id") == target_budget_id:
+                    budget_values_ref.child(value_id).delete()
         
         # Spara budget-värden
         for account_id, months_data in budget_updates.items():
