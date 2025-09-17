@@ -197,21 +197,33 @@ class FirebaseDB:
             # Hitta befintligt värde eller skapa nytt
             budget_values_ref = self.get_ref("budget_values")
             existing_data = budget_values_ref.get()
-            existing_values = existing_data.val() if existing_data.val() else {}
             
-            for key, value in existing_values.items():
-                if (value.get("budget_id") == budget_id and 
-                    value.get("account_id") == account_id and 
-                    value.get("month") == month):
-                    # Uppdatera befintligt värde
-                    budget_values_ref.child(key).update(value_data)
-                    return key
+            # Säker hantering av Pyrebase response
+            existing_values = {}
+            if existing_data and existing_data.val():
+                existing_values = existing_data.val()
+                # Säkerställ att det är en dict
+                if not isinstance(existing_values, dict):
+                    existing_values = {}
+            
+            # Sök efter befintligt värde
+            if existing_values:
+                for key, value in existing_values.items():
+                    if (value and isinstance(value, dict) and
+                        value.get("budget_id") == budget_id and 
+                        value.get("account_id") == account_id and 
+                        value.get("month") == month):
+                        # Uppdatera befintligt värde
+                        budget_values_ref.child(key).update(value_data)
+                        return key
             
             # Skapa nytt värde
             new_value_ref = budget_values_ref.push(value_data)
             return new_value_ref['name']  # Pyrebase returnerar {'name': 'key'}
         except Exception as e:
             print(f"Error updating budget value: {e}")
+            print(f"Debug - existing_data type: {type(existing_data) if 'existing_data' in locals() else 'Not set'}")
+            print(f"Debug - existing_data: {existing_data if 'existing_data' in locals() else 'Not set'}")
             raise
 
 # Global instans
