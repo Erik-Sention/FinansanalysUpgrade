@@ -279,17 +279,9 @@ def save_budget(company_id, year, budget_updates):
         # Spara budget
         saved_count = 0
         
-        # Ta bort alla befintliga budget-värden för denna budget först
-        budget_values_ref = firebase_db.get_ref("budget_values")
-        existing_data = budget_values_ref.get()
-        existing_values = existing_data.val() if existing_data and existing_data.val() else {}
-        
-        # Säker hantering av existing_values
-        if existing_values and isinstance(existing_values, dict):
-            for value_id, value_data in existing_values.items():
-                if value_data and value_data.get("budget_id") == target_budget_id:
-                    # Använd Pyrebase syntax för borttagning
-                    firebase_db.get_ref("budget_values").child(value_id).remove()
+        # TA BORT DENNA DESTRUKTIVA KOD! 
+        # Istället uppdatera bara de konton som ändrats i budget_updates
+        # Låt befintliga värden stå kvar om de inte finns i uppdateringen
         
         # Spara budget-värden
         for account_id, months_data in budget_updates.items():
