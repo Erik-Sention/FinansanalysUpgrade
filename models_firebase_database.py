@@ -135,6 +135,36 @@ class FirebaseDB:
             print(f"Error getting values: {e}")
             return {}
 
+    def get_budgets(self, company_id: Optional[str] = None) -> Dict[str, Any]:
+        """Hämta budgetar"""
+        try:
+            budgets_ref = self.get_ref("budgets")
+            data = budgets_ref.get()
+            budgets = data.val() if data.val() else {}
+            
+            if company_id:
+                return {k: v for k, v in budgets.items() if v.get("company_id") == company_id}
+            
+            return budgets
+        except Exception as e:
+            print(f"Error getting budgets: {e}")
+            return {}
+
+    def get_budget_values(self, budget_id: Optional[str] = None) -> Dict[str, Any]:
+        """Hämta budgetvärden"""
+        try:
+            budget_values_ref = self.get_ref("budget_values")
+            data = budget_values_ref.get()
+            values = data.val() if data.val() else {}
+            
+            if budget_id:
+                return {k: v for k, v in values.items() if v.get("budget_id") == budget_id}
+            
+            return values
+        except Exception as e:
+            print(f"Error getting budget values: {e}")
+            return {}
+
 # Global instans
 def get_firebase_db():
     """Hämta Firebase databas instans"""
