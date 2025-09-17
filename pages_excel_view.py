@@ -130,8 +130,9 @@ def get_budget_data(company_id, year):
         if not df.empty:
             df = df.sort_values(['category', 'account_name', 'month'])
         
-        # Debug: visa vilken budget som används
-        st.info(f"📊 Laddar budget från budget_id: {budget_id} ({len(df)} värden)")
+        # Visa vilken budget som används med korrekt antal
+        budget_count = len(budget_values) if budget_values else 0
+        st.info(f"📊 Laddar budget från budget_id: {budget_id} ({budget_count} värden)")
         
         return df
     except Exception as e:
