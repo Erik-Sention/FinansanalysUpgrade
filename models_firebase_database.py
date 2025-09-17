@@ -48,7 +48,7 @@ class FirebaseDB:
             # Kontrollera om Firebase redan är initialiserad
             firebase_admin.get_app()
         except ValueError:
-            # Försök med service account credentials först
+            # Använd endast service account credentials för Streamlit Cloud
             if get_env_var("FIREBASE_PRIVATE_KEY"):
                 try:
                     cred_dict = {
@@ -68,27 +68,13 @@ class FirebaseDB:
                     firebase_admin.initialize_app(cred, {
                         'databaseURL': get_env_var("FIREBASE_DATABASE_URL")
                     })
+                    print("✅ Firebase initialiserad med Service Account")
                 except Exception as e:
-                    print(f"Service account auth failed: {e}")
-                    # Fallback till Application Default Credentials
-                    self._initialize_with_gcloud()
+                    print(f"❌ Service account auth failed: {e}")
+                    raise Exception(f"Firebase initialization failed: {e}")
             else:
-                # Använd Application Default Credentials
-                self._initialize_with_gcloud()
+                raise Exception("Firebase Service Account credentials saknas! Lägg till alla FIREBASE_* secrets i Streamlit Cloud.")
     
-    def _initialize_with_gcloud(self):
-        """Initiera med gcloud Application Default Credentials"""
-        try:
-            # Använd default credentials (från gcloud auth)
-            cred = credentials.ApplicationDefault()
-            firebase_admin.initialize_app(cred, {
-                'databaseURL': get_env_var("FIREBASE_DATABASE_URL"),
-                'projectId': get_env_var("FIREBASE_PROJECT_ID")
-            })
-            print("✅ Firebase initialiserad med Application Default Credentials")
-        except Exception as e:
-            print(f"❌ Firebase initialization failed: {e}")
-            raise
         
         # Pyrebase konfiguration för enklare operationer  
         self.firebase_config = {
@@ -102,8 +88,6 @@ class FirebaseDB:
         
         self.firebase = pyrebase.initialize_app(self.firebase_config)
         self.db_pyrebase = self.firebase.database()
-        
-        return db.reference()
     
     def get_authenticated_ref(self, path: str = ""):
         """Hämta autentiserad databas referens med användartoken"""
