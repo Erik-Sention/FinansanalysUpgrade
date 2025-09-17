@@ -233,7 +233,7 @@ def create_excel_table_with_categories(actual_df, budget_df):
                 budget_data = budget_df[(budget_df['account_id'] == account_id) & (budget_df['month'] == i)]
                 budget_value = budget_data['amount'].sum() if len(budget_data) > 0 else 0
             
-            # Visa faktisk data om den finns, annars budget-data
+            # Visa faktisk data OM den finns, annars visa budget-data 
             display_value = actual_value if actual_value != 0 else budget_value
             row[month] = display_value
         
@@ -445,6 +445,9 @@ def show():
             
             display_data = []
             for idx, row in category_data.iterrows():
+                account_id = row['account_id']
+                
+                # Faktisk data rad
                 month_data = [row['account']]  # Starta med kontonamnet
                 for month in month_cols:
                     value = row.get(month, 0)
@@ -452,19 +455,21 @@ def show():
                     formatted_value = f"{value:,.1f}".replace(',', ' ').rstrip('0').rstrip('.')
                     month_data.append(formatted_value)
                 display_data.append(month_data)
+                
+                # Budget data rad (endast om budget finns för detta konto)
+                if not budget_df.empty:
+                    account_budget = budget_df[budget_df['account_id'] == account_id]
+                    if not account_budget.empty:
+                        budget_month_data = [f"  └ Budget: {row['account']}"]  # Indenterad budget-rad
+                        for i, month in enumerate(month_cols, 1):
+                            budget_for_month = account_budget[account_budget['month'] == i]
+                            budget_value = budget_for_month['amount'].sum() if not budget_for_month.empty else 0
+                            formatted_budget = f"{budget_value:,.1f}".replace(',', ' ').rstrip('0').rstrip('.')
+                            budget_month_data.append(formatted_budget)
+                        display_data.append(budget_month_data)
             
             if display_data:
                 display_df = pd.DataFrame(display_data, columns=['Konto'] + month_cols)
-
-                # Lägg till Tot (budget) som sista rad för kategorin
-                if not budget_df.empty:
-                    budget_category = budget_df[budget_df['category'] == category]
-                    budget_totals = []
-                    for i, m in enumerate(month_cols, 1):
-                        total = budget_category[budget_category['month'] == i]['amount'].sum()
-                        budget_totals.append(f"{total:,.1f}".replace(',', ' ').rstrip('0').rstrip('.'))
-                    budget_row = pd.DataFrame([["Tot (budget)"] + budget_totals], columns=['Konto'] + month_cols)
-                    display_df = pd.concat([display_df, budget_row], ignore_index=True)
 
                 st.dataframe(display_df.set_index('Konto'), use_container_width=True)
         
