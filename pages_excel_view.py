@@ -235,8 +235,8 @@ def save_budget(company_id, year, budget_updates):
                         target_budget_id = budget_id
         
         if target_budget_id:
-            # Uppdatera befintlig budget
-            budget_ref = firebase_db.get_ref(f"budgets/{target_budget_id}")
+            # Uppdatera befintlig budget med Pyrebase syntax
+            budget_ref = firebase_db.get_ref("budgets").child(target_budget_id)
             budget_ref.update({
                 "updated_at": datetime.now().isoformat()
             })
@@ -263,16 +263,26 @@ def save_budget(company_id, year, budget_updates):
         if existing_values and isinstance(existing_values, dict):
             for value_id, value_data in existing_values.items():
                 if value_data and value_data.get("budget_id") == target_budget_id:
-                    budget_values_ref.child(value_id).delete()
+                    # Använd Pyrebase syntax för borttagning
+                    firebase_db.get_ref("budget_values").child(value_id).remove()
         
         # Spara budget-värden
         for account_id, months_data in budget_updates.items():
             for month, amount in months_data.items():
-                # Lägg till nytt värde (även om det är 0 för fullständighet)
-                firebase_db.update_budget_value(target_budget_id, account_id, month, float(amount))
-                saved_count += 1
+                try:
+                    # Lägg till nytt värde (även om det är 0 för fullständighet)
+                    value_id = firebase_db.update_budget_value(target_budget_id, account_id, month, float(amount))
+                    saved_count += 1
+                    st.write(f"   💾 Sparade: konto {account_id}, månad {month}, värde {amount} → ID: {value_id}")
+                except Exception as e:
+                    st.error(f"❌ Fel vid sparande av värde: {e}")
         
         st.success(f"✅ Budget sparad! {saved_count} värden sparade för budget_id: {target_budget_id}")
+        
+        # Kontrollera att det verkligen sparades
+        saved_budget_values = firebase_db.get_budget_values(target_budget_id)
+        st.write(f"🔍 Verifiering: {len(saved_budget_values)} värden finns nu i databasen för budget {target_budget_id}")
+        
         return True
     except Exception as e:
         st.error(f"❌ Fel vid sparande av budget: {e}")
