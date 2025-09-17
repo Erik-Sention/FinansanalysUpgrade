@@ -6,13 +6,25 @@ import sys
 import os
 from pathlib import Path
 
-# Lägg till src-mappen i path
-src_path = Path(__file__).parent / "src"
+# Path setup för både lokal och Streamlit Cloud deployment
+project_root = Path(__file__).parent
+src_path = project_root / "src"
+sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(src_path))
 
-# Importera sidor och autentisering
-from pages import excel_view, visualization, auth
-from utils.auth import require_authentication, show_user_info, get_auth
+# Importera sidor och autentisering med fallback för olika environments
+try:
+    # Försök först med src prefix (Streamlit Cloud)
+    from src.pages import excel_view, visualization, auth
+    from src.utils.auth import require_authentication, show_user_info, get_auth
+except ImportError:
+    try:
+        # Fallback utan src prefix (lokal utveckling)
+        from pages import excel_view, visualization, auth
+        from utils.auth import require_authentication, show_user_info, get_auth
+    except ImportError:
+        st.error("Import fel - kontrollera filstruktur")
+        st.stop()
 
 # Konfigurera sidan
 st.set_page_config(
