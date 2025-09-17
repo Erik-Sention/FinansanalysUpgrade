@@ -67,10 +67,6 @@ def show_login_form(auth):
             if result['success']:
                 st.success(result['message'])
                 
-                # Visa varning om e-post inte är verifierad
-                if 'warning' in result:
-                    st.warning(f"⚠️ {result['warning']}")
-                
                 # Spara användardata i session state
                 st.session_state['user'] = result['user']
                 st.session_state['user_token'] = result['user']['idToken']

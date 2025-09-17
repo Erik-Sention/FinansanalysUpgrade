@@ -57,12 +57,11 @@ class FirebaseAuth:
             is_verified = account_info['users'][0]['emailVerified']
             
             if not is_verified:
-                # Visa varning men tillåt inloggning ändå
+                # Tillåt inloggning utan varning
                 return {
                     'success': True,
                     'user': user,
-                    'message': 'Inloggning lyckades!',
-                    'warning': 'Din e-postadress är inte verifierad. Du kan använda applikationen, men vi rekommenderar att du verifierar din e-post för extra säkerhet.'
+                    'message': 'Inloggning lyckades!'
                 }
             
             return {
