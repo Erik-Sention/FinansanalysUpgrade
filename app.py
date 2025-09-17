@@ -6,33 +6,71 @@ import sys
 import os
 from pathlib import Path
 
-# Path setup för både lokal och Streamlit Cloud deployment
-project_root = Path(__file__).parent
-src_path = project_root / "src"
-sys.path.insert(0, str(project_root))
-sys.path.insert(0, str(src_path))
-
-# Importera sidor och autentisering med fallback för olika environments
-try:
-    # Försök först med src prefix (Streamlit Cloud)
-    from src.pages import excel_view, visualization, auth
-    from src.utils.auth import require_authentication, show_user_info, get_auth
-except ImportError:
-    try:
-        # Fallback utan src prefix (lokal utveckling)
-        from pages import excel_view, visualization, auth
-        from utils.auth import require_authentication, show_user_info, get_auth
-    except ImportError:
-        st.error("Import fel - kontrollera filstruktur")
-        st.stop()
-
-# Konfigurera sidan
+# Konfigurera sidan först
 st.set_page_config(
     page_title="Finansiell Analys",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Dynamisk import för att hantera olika environments
+def safe_import():
+    """Säker import som fungerar både lokalt och på Streamlit Cloud"""
+    
+    # Lägg till alla möjliga paths
+    current_dir = Path(__file__).parent
+    src_dir = current_dir / "src"
+    
+    # Lägg till paths
+    paths_to_add = [
+        str(current_dir),
+        str(src_dir),
+        str(current_dir / "src" / "pages"),
+        str(current_dir / "src" / "utils"),
+        str(current_dir / "src" / "models")
+    ]
+    
+    for path in paths_to_add:
+        if path not in sys.path:
+            sys.path.insert(0, path)
+    
+    # Prova flera olika import-strategier
+    try:
+        # Strategi 1: Absolut import med src prefix
+        from src.pages import excel_view, visualization, auth
+        from src.utils.auth import require_authentication, show_user_info, get_auth
+        return excel_view, visualization, auth, require_authentication, show_user_info, get_auth
+    except ImportError as e1:
+        try:
+            # Strategi 2: Relativ import utan src prefix
+            from pages import excel_view, visualization, auth
+            from utils.auth import require_authentication, show_user_info, get_auth
+            return excel_view, visualization, auth, require_authentication, show_user_info, get_auth
+        except ImportError as e2:
+            try:
+                # Strategi 3: Direkta imports
+                import excel_view, visualization, auth
+                from auth import require_authentication, show_user_info, get_auth
+                return excel_view, visualization, auth, require_authentication, show_user_info, get_auth
+            except ImportError as e3:
+                # Visa detaljerad felsökning
+                st.error("Import fel - alla strategier misslyckades:")
+                st.code(f"Strategi 1 fel: {e1}")
+                st.code(f"Strategi 2 fel: {e2}")
+                st.code(f"Strategi 3 fel: {e3}")
+                st.code(f"Nuvarande arbetskatalog: {os.getcwd()}")
+                st.code(f"Sys.path: {sys.path[:5]}")
+                st.code(f"Filer i current dir: {list(current_dir.iterdir())}")
+                st.code(f"Filer i src: {list(src_dir.iterdir()) if src_dir.exists() else 'Src exists not'}")
+                st.stop()
+
+# Utför säker import
+try:
+    excel_view, visualization, auth, require_authentication, show_user_info, get_auth = safe_import()
+except:
+    st.error("Kritiskt fel vid import")
+    st.stop()
 
 # Kontrollera autentisering
 firebase_auth = get_auth()
