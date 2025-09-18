@@ -502,18 +502,30 @@ def show():
                 rows.append(row)
             return pd.DataFrame(rows)
 
-        def grid_to_updates(df: pd.DataFrame) -> dict:
-            month_map = [('Jan',1),('Feb',2),('Mar',3),('Apr',4),('Maj',5),('Jun',6),
-                         ('Jul',7),('Aug',8),('Sep',9),('Okt',10),('Nov',11),('Dec',12)]
-            updates: dict[str, dict[int, float]] = {}  # Firebase använder string-IDs
-            for _, r in df.iterrows():
-                aid = r['account_id']  # Firebase använder string-IDs
-                updates[aid] = {}
-                for label, num in month_map:
-                    try:
-                        updates[aid][num] = float(r[label]) if pd.notna(r[label]) else 0.0
-                    except Exception:
-                        updates[aid][num] = 0.0
+        def diff_budget_updates(original_df: pd.DataFrame, edited_df: pd.DataFrame) -> dict:
+            """Returnera endast ändrade celler som updates {account_id: {month: amount}}"""
+            month_map = {'Jan':1,'Feb':2,'Mar':3,'Apr':4,'Maj':5,'Jun':6,
+                         'Jul':7,'Aug':8,'Sep':9,'Okt':10,'Nov':11,'Dec':12}
+            # Säkerställ samma sorteringsordning och indexering via account_id
+            orig = original_df.set_index('account_id')
+            edit = edited_df.set_index('account_id')
+            updates: dict[str, dict[int, float]] = {}
+            # Jämför per konto och månadskolumn
+            for account_id in edit.index:
+                if account_id not in orig.index:
+                    # Helt ny rad -> skicka alla icke-NaN värden
+                    for col, val in edit.loc[account_id].items():
+                        if col in month_map and pd.notna(val):
+                            updates.setdefault(account_id, {})[month_map[col]] = float(val)
+                    continue
+                for col, edited_val in edit.loc[account_id].items():
+                    if col not in month_map:
+                        continue
+                    base_val = orig.loc[account_id].get(col, 0.0)
+                    e = float(edited_val) if pd.notna(edited_val) else 0.0
+                    b = float(base_val) if pd.notna(base_val) else 0.0
+                    if abs(e - b) > 1e-9:
+                        updates.setdefault(account_id, {})[month_map[col]] = e
             return updates
 
         for i, category in enumerate(categories):
@@ -540,8 +552,11 @@ def show():
                 )
 
                 if st.button(f"💾 Spara budget – {category}", type="primary", key=f"save_{category}"):
-                    # data_editor returnerar bara diff i st.session_state om inte vi tar edited_df
-                    updates = grid_to_updates(edited_df)
+                    # Spara endast ändrade celler
+                    updates = diff_budget_updates(grid_df, edited_df)
+                    if not updates:
+                        st.info("Inga ändringar att spara.")
+                        st.stop()
                     if save_budget(selected_company_id, selected_year, updates):
                         st.success("✅ Budget sparad till databasen!")
                         import time
