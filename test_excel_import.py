@@ -8,7 +8,7 @@ from models_firebase_database import get_firebase_db
 from datetime import datetime
 import io
 
-def load_excel_data(excel_file_path: str = "~$Finansiell Data.xlsx"):
+def load_excel_data(excel_file_path: str = "Finansiell Data.xlsx"):
     """
     Läs riktiga Excel-data från filen
     """
@@ -127,6 +127,11 @@ def save_test_data_to_firebase(df: pd.DataFrame) -> bool:
         # Begränsa till bara första 2 företag för test
         companies_to_import = unique_companies[:2]
         st.warning(f"⚠️ IMPORTERAR BARA DE FÖRSTA 2: {list(companies_to_import)}")
+        
+        # Säkerställ att companies_to_import är definierad för senare användning
+        if len(companies_to_import) == 0:
+            st.error("❌ Inga företag att importera!")
+            return False
         
         for i, company_name in enumerate(companies_to_import):
             if pd.notna(company_name):
