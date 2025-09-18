@@ -30,8 +30,9 @@ try:
     import pages_visualization as visualization
     from utils_auth import require_authentication, show_user_info, get_auth
     
-    # Importera ENDAST från fungerende Excel-sidor
+    # Importera ENDAST från fungerende sidor
     import pages_excel_view as excel_view  # Root-level version som använder pyrebase
+    from test_input_page import show_test_input
     
 except ImportError as e:
     st.error(f"Import fel: {e}")
@@ -53,7 +54,7 @@ if firebase_auth.is_authenticated():
     # Navigation för inloggade användare (endast fungerende sidor)
     page = st.sidebar.selectbox(
         "Välj sida",
-        ["💾 Finansdatabas (Pyrebase)", "📈 Visualisering"],
+        ["🧪 Test-input (Firebase)", "💾 Finansdatabas (Pyrebase)", "📈 Visualisering"],
         index=0
     )
     
@@ -63,7 +64,9 @@ if firebase_auth.is_authenticated():
     require_authentication()
     
     # Visa vald sida
-    if page == "💾 Finansdatabas (Pyrebase)":
+    if page == "🧪 Test-input (Firebase)":
+        show_test_input()
+    elif page == "💾 Finansdatabas (Pyrebase)":
         excel_view.show()
     elif page == "📈 Visualisering":
         visualization.show()
