@@ -459,6 +459,7 @@ def load_budget_values(company_id: str, year: int = 2025):
 def save_budget_changes(company_id: str, year: int, edited_df: pd.DataFrame, original_df: pd.DataFrame):
     """Spara budget-ändringar till Firebase"""
     try:
+        st.write(f"🔍 DEBUG: Sparar budget för company_id: {company_id}, år: {year}")
         firebase_db = get_firebase_db()
         budget_ref = firebase_db.get_ref("test_budget_data")
         
@@ -489,6 +490,7 @@ def save_budget_changes(company_id: str, year: int, edited_df: pd.DataFrame, ori
                 # Om värdet har ändrats
                 if old_value != new_value:
                     changes_made = True
+                    st.write(f"🔍 DEBUG: Ändring - {account_id}, månad {month_idx}: {old_value} → {new_value}")
                     
                     # Hitta eller skapa budget-post
                     values_ref = firebase_db.get_ref("test_budget_data/values")
@@ -766,11 +768,12 @@ def show_excel_import_test():
                     
                     # Spara ändringar automatiskt
                     if not edited_budget.equals(budget_df):
-                        if save_budget_changes(selected_company_id, import_year, edited_budget, budget_df):
-                            st.success("✅ Budget sparad!")
-                            st.rerun()
-                        else:
-                            st.error("❌ Fel vid sparande av budget")
+                        with st.spinner("Sparar budget..."):
+                            if save_budget_changes(selected_company_id, import_year, edited_budget, budget_df):
+                                st.success("✅ Budget sparad!")
+                                # Ta bort st.rerun() för att undvika konflikt
+                            else:
+                                st.error("❌ Fel vid sparande av budget")
                             
             else:
                 st.info("📝 Importera Excel-data först för att skapa budget")
