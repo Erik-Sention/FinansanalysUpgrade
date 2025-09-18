@@ -38,7 +38,7 @@ def load_companies_and_years():
         return [], 2025
 
 def load_accounts_for_company(company_id: str):
-    """Hämta alla konton för ett specifikt företag"""
+    """Hämta alla konton för ett specifikt företag med kategoriinformation"""
     try:
         firebase_db = get_firebase_db()
         
@@ -46,13 +46,26 @@ def load_accounts_for_company(company_id: str):
         accounts_ref = firebase_db.get_ref("test_data/accounts")
         accounts_data = accounts_ref.get(firebase_db._get_token())
         
+        # Hämta kategorier för att kunna matcha kategori-ID till namn
+        categories = firebase_db.get_account_categories()
+        
         accounts = []
         if accounts_data and accounts_data.val():
             for account_id, account_info in accounts_data.val().items():
                 if account_info.get('company_id') == company_id:
+                    # Hämta kategorinamn baserat på category_id
+                    category_id = account_info.get('category_id')
+                    category_name = "Okänd"
+                    if category_id and categories:
+                        category_data = categories.get(category_id)
+                        if category_data:
+                            category_name = category_data.get('name', 'Okänd')
+                    
                     accounts.append({
                         'id': account_id,
-                        'name': account_info['name']
+                        'name': account_info['name'],
+                        'category': category_name,
+                        'category_id': category_id
                     })
         
         return accounts
@@ -117,6 +130,81 @@ def load_simple_budget(company_name: str, year: int, account_name: str):
         st.error(f"❌ Fel vid laddning: {e}")
         return {}
 
+def show_company_budget_summary(company_name: str, year: int, accounts: list):
+    """Visa sammanfattning av alla budgetar för företaget, grupperat efter kategori"""
+    try:
+        # Samla alla budgetar för företaget
+        category_totals = {}
+        account_budgets = {}
+        
+        for account in accounts:
+            account_name = account['name']
+            category = account.get('category', 'Okänd')
+            
+            # Ladda budget för detta konto
+            budget = load_simple_budget(company_name, year, account_name)
+            
+            if budget and any(v != 0 for v in budget.values()):
+                total = sum(budget.values())
+                account_budgets[account_name] = {
+                    'total': total,
+                    'category': category,
+                    'budget': budget
+                }
+                
+                # Lägg till i kategoritotal
+                if category not in category_totals:
+                    category_totals[category] = 0
+                category_totals[category] += total
+        
+        if not account_budgets:
+            st.info("Inga budgetar skapade ännu för detta företag.")
+            return
+        
+        # Visa kategoritotaler
+        st.markdown("**📋 Totaler per kategori:**")
+        
+        # Sortera kategorier (Intäkter först)
+        sorted_categories = sorted(category_totals.items(), 
+                                 key=lambda x: (0 if 'intäkt' in x[0].lower() else 1, x[0]))
+        
+        cols = st.columns(len(sorted_categories))
+        total_result = 0
+        
+        for i, (category, total) in enumerate(sorted_categories):
+            with cols[i]:
+                if 'intäkt' in category.lower():
+                    st.metric(f"💰 {category}", f"{total:,.0f} kr", delta_color="normal")
+                    total_result += total
+                elif 'kostnad' in category.lower():
+                    st.metric(f"💸 {category}", f"{total:,.0f} kr", delta_color="inverse")
+                    total_result -= total
+                else:
+                    st.metric(f"📊 {category}", f"{total:,.0f} kr")
+        
+        # Visa resultat
+        if len(sorted_categories) > 1:
+            st.markdown("---")
+            if total_result >= 0:
+                st.success(f"📈 **Budgeterat resultat:** {total_result:,.0f} kr")
+            else:
+                st.error(f"📉 **Budgeterat resultat:** {total_result:,.0f} kr")
+        
+        # Visa detaljerad lista
+        st.markdown("**📝 Detaljerad lista:**")
+        for category, total in sorted_categories:
+            st.markdown(f"**{category}** ({total:,.0f} kr):")
+            
+            category_accounts = [(name, data) for name, data in account_budgets.items() 
+                               if data['category'] == category]
+            category_accounts.sort(key=lambda x: x[1]['total'], reverse=True)
+            
+            for account_name, data in category_accounts:
+                st.markdown(f"  • {account_name}: {data['total']:,.0f} kr")
+        
+    except Exception as e:
+        st.error(f"❌ Fel vid laddning av budgetsammanfattning: {e}")
+
 def show_simple_budget_page():
     """Visa ENKEL budget-sida"""
     st.title("📊 Budgethantering")
@@ -155,34 +243,86 @@ def show_simple_budget_page():
     # Filtrera efter kategori
     col1, col2 = st.columns([1, 2])
     
+    # Hämta tillgängliga kategorier från kontona
+    available_categories = list(set([acc.get('category', 'Okänd') for acc in accounts]))
+    available_categories = [cat for cat in available_categories if cat != 'Okänd']
+    available_categories.sort()
+    category_options = ["Alla"] + available_categories
+    
     with col1:
         category_filter = st.selectbox(
             "Kategori:",
-            ["Alla", "Intäkter", "Kostnader"],
+            category_options,
             key="category_filter"
         )
     
     # Filtrera konton baserat på kategori
-    if category_filter == "Intäkter":
-        filtered_accounts = [acc for acc in accounts if acc.get('category', '').upper() == 'INTÄKTER']
-    elif category_filter == "Kostnader":
-        filtered_accounts = [acc for acc in accounts if acc.get('category', '').upper() == 'KOSTNADER']
-    else:
+    if category_filter == "Alla":
         filtered_accounts = accounts
+    else:
+        filtered_accounts = [acc for acc in accounts if acc.get('category', '') == category_filter]
+    
+    # Sortera konton: Intäkter först, sedan Kostnader, sedan alfabetiskt inom kategori
+    def sort_key(account):
+        category = account.get('category', 'Zzz')  # 'Zzz' för att sätta okända sist
+        name = account.get('name', '')
+        
+        # Sätt prioritet för kategorier
+        if 'intäkt' in category.lower():
+            category_priority = '1'
+        elif 'kostnad' in category.lower():
+            category_priority = '2'
+        else:
+            category_priority = '3'
+        
+        return f"{category_priority}_{category}_{name}"
+    
+    filtered_accounts.sort(key=sort_key)
     
     if not filtered_accounts:
         st.warning(f"Inga konton hittade för {category_filter}")
         return
     
     with col2:
-        account_options = {account['name']: account for account in filtered_accounts}
-        selected_account_name = st.selectbox(
+        # Skapa dropdown-alternativ med kategoriinformation
+        account_display_options = {}
+        for account in filtered_accounts:
+            category = account.get('category', 'Okänd')
+            name = account['name']
+            
+            # Lägg till emoji baserat på kategori
+            if 'intäkt' in category.lower():
+                emoji = "💰"
+            elif 'kostnad' in category.lower():
+                emoji = "💸"
+            else:
+                emoji = "📊"
+            
+            # Om vi visar alla kategorier, visa kategorin i dropdown
+            if category_filter == "Alla":
+                display_name = f"{emoji} {name} ({category})"
+            else:
+                display_name = f"{emoji} {name}"
+            
+            account_display_options[display_name] = account
+        
+        selected_account_display = st.selectbox(
             "Konto:",
-            list(account_options.keys()),
+            list(account_display_options.keys()),
             key="simple_account_select"
         )
+        
+        selected_account = account_display_options[selected_account_display]
+        selected_account_name = selected_account['name']
     
-    selected_account = account_options[selected_account_name]
+    # Visa valt konto med kategoriinformation
+    category = selected_account.get('category', 'Okänd')
+    if 'intäkt' in category.lower():
+        st.success(f"📈 **Valt konto:** {selected_account_name} (**{category}**)")
+    elif 'kostnad' in category.lower():
+        st.error(f"📉 **Valt konto:** {selected_account_name} (**{category}**)")
+    else:
+        st.info(f"📊 **Valt konto:** {selected_account_name} (**{category}**)")
     
     # STEG 3: Redigera månadsbudget
     st.markdown("### 3. Ange månadsbudget")
@@ -234,6 +374,10 @@ def show_simple_budget_page():
             
             budget_df = pd.DataFrame([ordered_budget])
             st.dataframe(budget_df, use_container_width=True)
+    
+    # Visa sammanfattning av alla budgetar för detta företag
+    with st.expander("📊 Budgetöversikt för företaget", expanded=False):
+        show_company_budget_summary(company_name, year, accounts)
 
 if __name__ == "__main__":
     show_simple_budget_page()
