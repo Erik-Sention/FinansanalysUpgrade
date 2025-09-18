@@ -176,14 +176,35 @@ def save_test_data_to_firebase(df: pd.DataFrame) -> bool:
             st.error("❌ Kunde inte identifiera företag- eller kontokolumner i Excel-filen")
             return False
         
+        # Processa data först för att få companies_to_import
+        company_id_map = {}
+        account_id_map = {}
+        category_id_map = {}
+        
+        # 1. Skapa företag (från kombinerade Excel-data)
+        unique_companies = df[company_col].unique()
+        st.info(f"🏢 Hittade {len(unique_companies)} företag: {list(unique_companies)}")
+        
+        # Data är redan filtrerad till 2 företag från Excel-läsningen
+        companies_to_import = unique_companies
+        st.success(f"✅ IMPORTERAR DESSA FÖRETAG: {list(companies_to_import)}")
+        
+        # Säkerställ att companies_to_import är definierad för senare användning
+        if len(companies_to_import) == 0:
+            st.error("❌ Inga företag att importera!")
+            return False
+        
+        # Bestäm år från data (ta från första raden)
+        import_year = df['År'].iloc[0] if 'År' in df.columns else 2025
+        
         # Skapa test_data struktur
         test_data = {
             "meta": {
                 "created_at": datetime.now().isoformat(),
-                "description": f"TEST: Excel import från BARA 2 företag ({len(companies_to_import)} av {len(df[company_col].unique())})",
-                "year": 2024,  # Anta 2024 för nu
+                "description": f"Excel import från 2 företag för år {import_year}",
+                "year": int(import_year),
                 "companies_count": len(companies_to_import),
-                "accounts_count": len(filtered_df),
+                "accounts_count": len(df),
                 "excel_columns": list(df.columns),
                 "imported_companies": list(companies_to_import)
             },
@@ -192,24 +213,6 @@ def save_test_data_to_firebase(df: pd.DataFrame) -> bool:
             "categories": {},
             "values": {}
         }
-        
-        # Processa data
-        company_id_map = {}
-        account_id_map = {}
-        category_id_map = {}
-        
-        # 1. Skapa företag (BARA DE FÖRSTA 2 för test!)
-        unique_companies = df[company_col].unique()
-        st.info(f"🏢 Hittade {len(unique_companies)} företag: {list(unique_companies)}")
-        
-        # Begränsa till bara första 2 företag för test
-        companies_to_import = unique_companies[:2]
-        st.warning(f"⚠️ IMPORTERAR BARA DE FÖRSTA 2: {list(companies_to_import)}")
-        
-        # Säkerställ att companies_to_import är definierad för senare användning
-        if len(companies_to_import) == 0:
-            st.error("❌ Inga företag att importera!")
-            return False
         
         for i, company_name in enumerate(companies_to_import):
             if pd.notna(company_name):
@@ -258,9 +261,9 @@ def save_test_data_to_firebase(df: pd.DataFrame) -> bool:
                     "created_at": datetime.now().isoformat()
                 }
         
-        # 3. Skapa konton (BARA för de 2 valda företagen!)
-        filtered_df = df[df[company_col].isin(companies_to_import)]
-        st.info(f"📋 Filtrerade data: {len(filtered_df)} rader för de 2 företagen")
+        # 3. Skapa konton (data är redan filtrerad från Excel-läsningen)
+        filtered_df = df  # Data är redan filtrerad till 2 företag
+        st.info(f"📋 Processerar {len(filtered_df)} rader för företagen")
         
         for i, (_, row) in enumerate(filtered_df.iterrows()):
             if pd.notna(row[account_col]):
@@ -318,7 +321,7 @@ def save_test_data_to_firebase(df: pd.DataFrame) -> bool:
                             test_data["values"][value_id] = {
                                 "company_id": company_id,
                                 "account_id": account_id,
-                                "year": 2024,  # Anta 2024
+                                "year": int(import_year),
                                 "month": month_num,
                                 "amount": float(row[month_col]),
                                 "type": "actual",
