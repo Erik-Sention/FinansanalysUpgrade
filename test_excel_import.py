@@ -120,6 +120,81 @@ def load_excel_data_correct(excel_file_path: str = "Finansiell Data.xlsx"):
         st.error(traceback.format_exc())
         return None
 
+def find_excel_sections(df: pd.DataFrame) -> dict:
+    """
+    Hitta sektioner i Excel för intäkter och kostnader
+    Returnerar: {'intäkter': (start_row, end_row), 'kostnader': (start_row, end_row)}
+    """
+    sections = {}
+    
+    revenue_start = None
+    revenue_end = None
+    expense_start = None
+    expense_end = None
+    
+    for idx in range(len(df)):
+        # Kolla första kolumnen för sektionsrubriker
+        cell_value = ""
+        if len(df.columns) > 0 and idx < len(df):
+            try:
+                cell_value = str(df.iloc[idx, 0]).strip().upper() if pd.notna(df.iloc[idx, 0]) else ''
+            except:
+                continue
+        
+        # Leta efter intäkter sektion
+        if 'RÖRELSENS INTÄKTER' in cell_value and 'SUMMA' not in cell_value and revenue_start is None:
+            revenue_start = idx
+            print(f"🔍 Hittade RÖRELSENS INTÄKTER på rad {idx}")
+        elif 'SUMMA RÖRELSENS INTÄKTER' in cell_value and revenue_start is not None:
+            revenue_end = idx
+            print(f"🔍 Hittade SUMMA RÖRELSENS INTÄKTER på rad {idx}")
+            
+        # Leta efter kostnader sektion
+        elif 'RÖRELSENS KOSTNADER' in cell_value and 'SUMMA' not in cell_value and expense_start is None:
+            expense_start = idx
+            print(f"🔍 Hittade RÖRELSENS KOSTNADER på rad {idx}")
+        elif 'SUMMA RÖRELSENS KOSTNADER' in cell_value and expense_start is not None:
+            expense_end = idx
+            print(f"🔍 Hittade SUMMA RÖRELSENS KOSTNADER på rad {idx}")
+    
+    # Sätt sektioner om vi hittade start och slut
+    if revenue_start is not None and revenue_end is not None:
+        sections['intäkter'] = (revenue_start + 1, revenue_end - 1)
+        print(f"✅ Intäkter sektion: rad {revenue_start + 1} till {revenue_end - 1}")
+    
+    if expense_start is not None and expense_end is not None:
+        sections['kostnader'] = (expense_start + 1, expense_end - 1)
+        print(f"✅ Kostnader sektion: rad {expense_start + 1} till {expense_end - 1}")
+        
+    return sections
+
+def categorize_account_by_position(account_name: str, row_index: int, sections: dict) -> str:
+    """
+    Kategorisera konto baserat på dess position i Excel-strukturen
+    """
+    # Kolla om raden är inom intäkter sektion
+    if 'intäkter' in sections:
+        start, end = sections['intäkter']
+        if start <= row_index <= end:
+            return "Intäkter"
+    
+    # Kolla om raden är inom kostnader sektion
+    if 'kostnader' in sections:
+        start, end = sections['kostnader']
+        if start <= row_index <= end:
+            return "Kostnader"
+    
+    # Fallback till nyckelord-baserad kategorisering
+    name_lower = account_name.lower()
+    
+    # Intäktsnyckelord
+    revenue_keywords = ['försäljning', 'intäkt', 'revenue', 'omsättning']
+    if any(keyword in name_lower for keyword in revenue_keywords):
+        return "Intäkter"
+    
+    # Default till kostnader (mest troligt för okategoriserade konton)
+    return "Kostnader"
+
 def save_test_data_to_firebase(df: pd.DataFrame) -> bool:
     """
     Spara Excel-data till Firebase under "test_data" nod
@@ -135,6 +210,11 @@ def save_test_data_to_firebase(df: pd.DataFrame) -> bool:
         
         st.info("🔍 Analyserar Excel-data...")
         st.write("**Kolumner hittade:**", list(df.columns))
+        
+        # Analysera Excel-struktur för att hitta intäkt/kostnad-sektioner
+        st.info("📋 Analyserar Excel-struktur för kategorisering...")
+        sections = find_excel_sections(df)
+        st.write("**Hittade sektioner:**", sections)
         
         # Försök identifiera kolumner automatiskt
         company_col = None
@@ -265,7 +345,7 @@ def save_test_data_to_firebase(df: pd.DataFrame) -> bool:
         filtered_df = df  # Data är redan filtrerad till 2 företag
         st.info(f"📋 Processerar {len(filtered_df)} rader för företagen")
         
-        for i, (_, row) in enumerate(filtered_df.iterrows()):
+        for i, (original_index, row) in enumerate(filtered_df.iterrows()):
             if pd.notna(row[account_col]):
                 account_id = f"account_{i+1}"
                 account_name = str(row[account_col])
@@ -275,12 +355,14 @@ def save_test_data_to_firebase(df: pd.DataFrame) -> bool:
                 if category_col and pd.notna(row[category_col]):
                     category_id = category_id_map.get(row[category_col], "category_1")
                 else:
-                    # Gissa kategori baserat på kontonamn
-                    account_lower = account_name.lower()
-                    if any(word in account_lower for word in ['försäljning', 'intäkt', 'revenue']):
-                        category_id = category_id_map.get("Intäkter", "category_1")
-                    else:
-                        category_id = category_id_map.get("Kostnader", "category_2")
+                    # Använd smart kategorisering baserat på Excel-struktur
+                    category_name = categorize_account_by_position(account_name, original_index, sections)
+                    category_id = category_id_map.get(category_name, "category_2")
+                    
+                    # Debugg-info
+                    print(f"📊 Konto: '{account_name}' på rad {original_index} → {category_name}")
+                    if original_index < 10:  # Visa endast för första 10 för att inte spamma
+                        st.write(f"🔍 **{account_name}** (rad {original_index}) → **{category_name}**")
                 
                 test_data["accounts"][account_id] = {
                     "name": account_name,
@@ -331,6 +413,23 @@ def save_test_data_to_firebase(df: pd.DataFrame) -> bool:
         # Spara till Firebase under test_data nod
         test_ref = firebase_db.get_ref("test_data")
         test_ref.set(test_data, firebase_db._get_token())
+        
+        # Visa kategoriseringssammanfattning
+        category_counts = {}
+        for account_data in test_data['accounts'].values():
+            category_id = account_data['category_id']
+            category_name = "Intäkter" if category_id == category_id_map.get("Intäkter") else "Kostnader"
+            category_counts[category_name] = category_counts.get(category_name, 0) + 1
+        
+        st.success("✅ Test-data sparat till Firebase!")
+        st.info(f"📊 **Sammanfattning:** {len(test_data['companies'])} företag, {len(test_data['accounts'])} konton, {len(test_data['values'])} värden")
+        
+        # Visa kategoriseringsresultat
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("💰 Intäkter", category_counts.get("Intäkter", 0))
+        with col2:
+            st.metric("💸 Kostnader", category_counts.get("Kostnader", 0))
         
         return True
         
