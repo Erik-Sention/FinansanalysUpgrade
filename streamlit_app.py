@@ -34,7 +34,7 @@ try:
     import pages_excel_view as excel_view  # Root-level version som använder pyrebase
     from test_input_page import show_test_input
     from test_excel_import import show_excel_import_test
-    from budget_page import show_budget_page
+    from simple_budget_page import show_simple_budget_page
     
 except ImportError as e:
     st.error(f"Import fel: {e}")
@@ -71,7 +71,7 @@ if firebase_auth.is_authenticated():
     elif page == "📊 Test Excel-import":
         show_excel_import_test()
     elif page == "💰 Budget-redigering":
-        show_budget_page()
+        show_simple_budget_page()
     elif page == "💾 Finansdatabas (Pyrebase)":
         excel_view.show()
     elif page == "📈 Visualisering":
