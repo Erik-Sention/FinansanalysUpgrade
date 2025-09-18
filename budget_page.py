@@ -11,11 +11,16 @@ def load_budget_values(company_id: str, year: int = 2025):
         data = budget_ref.get(firebase_db._get_token())
         
         if not (data and data.val()):
+            st.write(f"🔍 DEBUG: Ingen data från BUDGET_DATABASE/{company_id}/{year}/accounts")
             return {}
         
-        # Säker läsning från ny struktur
+        # DEBUG: Visa RAW data från Firebase
+        raw_data = data.val()
+        st.write(f"🔍 DEBUG: RAW Firebase data: {raw_data}")
+        
+        # FIXA struktur för att matcha Firebase
         budget_values = {}
-        data_val = data.val()
+        data_val = raw_data
         
         if isinstance(data_val, dict):
             for account_id, account_data in data_val.items():
@@ -25,7 +30,9 @@ def load_budget_values(company_id: str, year: int = 2025):
                     if isinstance(months_data, dict):
                         for month_idx, month_data in months_data.items():
                             if isinstance(month_data, dict):
-                                budget_values[account_id][int(month_idx)] = month_data.get('budget_amount', 0)
+                                budget_amount = month_data.get('budget_amount', 0)
+                                if budget_amount != 0:  # Bara spara icke-noll värden
+                                    budget_values[account_id][int(month_idx)] = budget_amount
         
         return budget_values
         
