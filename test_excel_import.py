@@ -162,9 +162,9 @@ def find_excel_sections(df: pd.DataFrame) -> dict:
         expense_patterns = ['rörelsens kostnader', 'rörelsekostnader', 'kostnader']
         expense_sum_patterns = ['summa rörelsens kostnader', 'summa rörelsekostnader', 'summa kostnader']
         
-        elif (any(pattern in cell_value_lower for pattern in expense_patterns) and 
-              not any(sum_pattern in cell_value_lower for sum_pattern in expense_sum_patterns) and 
-              expense_start is None):
+        if (any(pattern in cell_value_lower for pattern in expense_patterns) and 
+            not any(sum_pattern in cell_value_lower for sum_pattern in expense_sum_patterns) and 
+            expense_start is None):
             expense_start = idx
             print(f"🔍 Hittade KOSTNADER-sektion på rad {idx}: '{cell_value}'")
         elif (any(sum_pattern in cell_value_lower for sum_pattern in expense_sum_patterns) and 
