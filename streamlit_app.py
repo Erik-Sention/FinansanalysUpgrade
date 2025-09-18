@@ -31,6 +31,9 @@ try:
     import pages_visualization as visualization
     from utils_auth import require_authentication, show_user_info, get_auth
     
+    # Import optimerad Excel-vy
+    from src.pages.excel_view_optimized import show_optimized
+    
 except ImportError as e:
     st.error(f"Import fel: {e}")
     st.error("Kontrollera att alla nödvändiga filer finns på root-nivån")
@@ -51,8 +54,8 @@ if firebase_auth.is_authenticated():
     # Navigation för inloggade användare
     page = st.sidebar.selectbox(
         "Välj sida",
-        ["💾 Finansdatabas", "📈 Visualisering"],
-        index=0
+        ["💾 Finansdatabas", "💾 Finansdatabas (Optimerad)", "📈 Visualisering"],
+        index=1  # Börja med optimerad version
     )
     
     st.sidebar.markdown("---")
@@ -63,6 +66,8 @@ if firebase_auth.is_authenticated():
     # Visa vald sida
     if page == "💾 Finansdatabas":
         excel_view.show()
+    elif page == "💾 Finansdatabas (Optimerad)":
+        show_optimized()
     elif page == "📈 Visualisering":
         visualization.show()
         
