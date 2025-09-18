@@ -240,11 +240,8 @@ def save_test_data_to_firebase(df: pd.DataFrame) -> bool:
                 account_col = col
                 break
                 
-        # Leta efter kategorikolumn
-        for col in df.columns:
-            if any(keyword in col.lower() for keyword in ['kategori', 'category', 'typ']):
-                category_col = col
-                break
+        # VI ANVÄNDER INTE KATEGORIKOLUMN - kategorin bestäms av position i Excel!
+        category_col = None  # ALLTID None eftersom vi bestämmer kategori från position
         
         # Leta efter månadskolumner
         month_names = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec']
@@ -255,8 +252,8 @@ def save_test_data_to_firebase(df: pd.DataFrame) -> bool:
         st.info(f"🔍 Identifierade kolumner:")
         st.write(f"- Företag: {company_col}")
         st.write(f"- Konto: {account_col}")
-        st.write(f"- Kategori: {category_col}")
         st.write(f"- Månader: {month_cols}")
+        st.info("📍 Kategorier bestäms automatiskt från Excel-position (Intäkter/Kostnader sektioner)")
         
         if not company_col or not account_col:
             st.error("❌ Kunde inte identifiera företag- eller kontokolumner i Excel-filen")
@@ -357,18 +354,13 @@ def save_test_data_to_firebase(df: pd.DataFrame) -> bool:
                 account_name = str(row[account_col])
                 account_id_map[account_name] = account_id
                 
-                # Bestäm kategori
-                if category_col and pd.notna(row[category_col]):
-                    category_id = category_id_map.get(row[category_col], "category_1")
-                else:
-                    # Använd smart kategorisering baserat på Excel-struktur
-                    category_name = categorize_account_by_position(account_name, original_index, sections)
-                    category_id = category_id_map.get(category_name, "category_2")
-                    
-                    # Debugg-info
-                    print(f"📊 Konto: '{account_name}' på rad {original_index} → {category_name}")
-                    if original_index < 10:  # Visa endast för första 10 för att inte spamma
-                        st.write(f"🔍 **{account_name}** (rad {original_index}) → **{category_name}**")
+                # Bestäm kategori ALLTID baserat på Excel-struktur
+                category_name = categorize_account_by_position(account_name, original_index, sections)
+                category_id = category_id_map.get(category_name, "category_2")
+                
+                # Debugg-info för ALLA konton
+                print(f"📊 Konto: '{account_name}' på rad {original_index} → {category_name}")
+                st.write(f"🔍 **{account_name}** (rad {original_index}) → **{category_name}**")
                 
                 test_data["accounts"][account_id] = {
                     "name": account_name,
