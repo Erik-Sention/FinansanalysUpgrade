@@ -38,9 +38,14 @@ def get_financial_data_with_categories(company_id, year):
         # Hämta värden för dataset
         values = firebase_db.get_values(dataset_id=target_dataset_id)
         
-        # Hämta referensdata
-        accounts = firebase_db.get_accounts()
-        categories = firebase_db.get_account_categories()
+        # Hämta referensdata från test_data (samma som budget-sidan)
+        accounts_ref = firebase_db.get_ref("test_data/accounts")
+        accounts_data = accounts_ref.get(firebase_db._get_token())
+        accounts = accounts_data.val() if accounts_data and accounts_data.val() else {}
+        
+        categories_ref = firebase_db.get_ref("test_data/categories")
+        categories_data = categories_ref.get(firebase_db._get_token())
+        categories = categories_data.val() if categories_data and categories_data.val() else {}
         
         # Bygg DataFrame
         data = []
@@ -106,9 +111,14 @@ def get_budget_data(company_id, year):
         print(f"🔥 GET_BUDGET_DATA: budget_values typ={type(budget_values)}")
         print(f"🔥 GET_BUDGET_DATA: budget_values längd={len(budget_values) if budget_values else 0}")
         
-        # Hämta referensdata
-        accounts = firebase_db.get_accounts()
-        categories = firebase_db.get_account_categories()
+        # Hämta referensdata från test_data (samma som budget-sidan)  
+        accounts_ref = firebase_db.get_ref("test_data/accounts")
+        accounts_data = accounts_ref.get(firebase_db._get_token())
+        accounts = accounts_data.val() if accounts_data and accounts_data.val() else {}
+        
+        categories_ref = firebase_db.get_ref("test_data/categories")
+        categories_data = categories_ref.get(firebase_db._get_token())
+        categories = categories_data.val() if categories_data and categories_data.val() else {}
         
         # Bygg DataFrame - säker hantering av budget_values
         data = []
@@ -149,10 +159,12 @@ def get_budget_data(company_id, year):
         return pd.DataFrame()
 
 def get_all_categories():
-    """Hämta alla kategorier"""
+    """Hämta alla kategorier från test_data"""
     try:
         firebase_db = get_firebase_db()
-        categories_dict = firebase_db.get_account_categories()
+        categories_ref = firebase_db.get_ref("test_data/categories")
+        categories_data = categories_ref.get(firebase_db._get_token())
+        categories_dict = categories_data.val() if categories_data and categories_data.val() else {}
         
         data = []
         for category_id, category_data in categories_dict.items():
