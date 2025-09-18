@@ -450,77 +450,35 @@ def load_budget_values(company_id: str, year: int = 2025):
         st.error(f"❌ Fel vid laddning av budget: {e}")
         return {}
 
-def save_budget_changes(company_id: str, year: int, edited_df: pd.DataFrame, original_df: pd.DataFrame):
-    """Spara budget-ändringar till HELT SEPARAT Firebase-struktur"""
+# Gamla komplicerade budget-funktionen borttagen - ersatt med save_single_budget_value
+
+def save_single_budget_value(company_id: str, year: int, account_id: str, account_name: str, category: str, month_idx: int, month_name: str, amount: float) -> bool:
+    """Spara en enskild budget-cell direkt (som test-input)"""
     try:
-        st.write(f"🔍 DEBUG: Sparar budget till BUDGET_DATABASE för company_id: {company_id}, år: {year}")
         firebase_db = get_firebase_db()
         
-        # HELT NY STRUKTUR - inte "test_budget_data" utan "BUDGET_DATABASE"
-        budget_base_ref = firebase_db.get_ref("BUDGET_DATABASE")
+        # Enkel path för enskild cell
+        budget_path = f"BUDGET_DATABASE/{company_id}/{year}/accounts/{account_id}/months/{month_idx}"
+        budget_ref = firebase_db.get_ref(budget_path)
         
-        # Skapa struktur: BUDGET_DATABASE/company_1/2025/accounts/account_X/months/
-        company_budget_ref = firebase_db.get_ref(f"BUDGET_DATABASE/{company_id}/{year}")
-        
-        # Skapa metadata
-        try:
-            meta_ref = firebase_db.get_ref(f"BUDGET_DATABASE/{company_id}/{year}/meta")
-            meta_ref.set({
-                'created_at': datetime.now().isoformat(),
-                'updated_at': datetime.now().isoformat(),
-                'description': f'Budget för {company_id} år {year}'
+        if amount == 0 or amount == 0.0:
+            # Ta bort 0-värden
+            budget_ref.remove(firebase_db._get_token())
+        else:
+            # Spara värdet
+            budget_ref.set({
+                'account_name': account_name,
+                'category': category,
+                'month': month_idx,
+                'month_name': month_name,
+                'budget_amount': float(amount),
+                'updated_at': datetime.now().isoformat()
             }, firebase_db._get_token())
-        except:
-            pass
         
-        # Identifiera ändringar
-        month_cols = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec']
-        changes_made = False
-        
-        for idx, (edited_row, original_row) in enumerate(zip(edited_df.itertuples(), original_df.itertuples())):
-            account_id = edited_row.account_id
-            account_name = edited_row.Konto
-            category = edited_row.Kategori
-            
-            for month_idx, month_name in enumerate(month_cols, 1):
-                old_value = getattr(original_row, month_name, 0)
-                new_value = getattr(edited_row, month_name, 0)
-                
-                # Spara ENDAST om värdet ändrats
-                if old_value != new_value:
-                    changes_made = True
-                    st.write(f"🔍 DEBUG: Ändring - {account_name}, månad {month_idx}: {old_value} → {new_value}")
-                    
-                    # HELT NY PATH-STRUKTUR
-                    budget_path = f"BUDGET_DATABASE/{company_id}/{year}/accounts/{account_id}/months/{month_idx}"
-                    budget_ref = firebase_db.get_ref(budget_path)
-                    
-                    # Spara ENDAST ändrade värden
-                    budget_ref.set({
-                        'account_name': account_name,
-                        'category': category,
-                        'month': month_idx,
-                        'month_name': month_name,
-                        'budget_amount': float(new_value) if new_value else 0.0,
-                        'updated_at': datetime.now().isoformat()
-                    }, firebase_db._get_token())
-                
-                # Ta bort 0-värden från databasen (för att spara utrymme)
-                elif new_value == 0 or new_value == 0.0:
-                    # Om någon sätter ett värde till 0, ta bort posten
-                    try:
-                        budget_path = f"BUDGET_DATABASE/{company_id}/{year}/accounts/{account_id}/months/{month_idx}"
-                        budget_ref = firebase_db.get_ref(budget_path)
-                        budget_ref.remove(firebase_db._get_token())
-                        st.write(f"🗑️ DEBUG: Tog bort 0-värde - {account_name}, månad {month_idx}")
-                    except:
-                        pass  # Posten fanns kanske inte
-        
-        st.write(f"🔍 DEBUG: Budget sparad till BUDGET_DATABASE/{company_id}/{year}/")
-        return changes_made
+        return True
         
     except Exception as e:
-        st.error(f"❌ Fel vid sparande av budget: {e}")
+        st.error(f"❌ Fel vid sparande av {month_name}: {e}")
         return False
 
 def clear_test_data():
@@ -707,17 +665,15 @@ def show_excel_import_test():
                 except Exception as e:
                     st.error(f"Debug fel: {e}")
             
-            # BUDGET-SEKTION (SÄKER VERSION)
+            # ENKEL BUDGET-SEKTION
             st.markdown("---")
             st.markdown("## 💰 Budget för företaget")
-            st.markdown("*Sparas till `BUDGET_DATABASE` - HELT separerat från Excel-data*")
+            st.markdown("*Välj konto och redigera månad för månad - sparas direkt!*")
             
             if values:  # Om vi har Excel-data att basera budget på
-                # Hämta befintlig budget eller skapa tom
-                budget_values = load_budget_values(selected_company_id, import_year)
+                # Hämta alla konton och organisera
+                accounts_by_category = {'Intäkter': [], 'Kostnader': []}
                 
-                # Skapa budget-tabell baserad på befintliga konton
-                budget_data = []
                 for account_id, month_values in values.items():
                     account_name = account_names.get(account_id, account_id)
                     
@@ -728,71 +684,74 @@ def show_excel_import_test():
                     else:
                         category = "Kostnader"
                     
-                    budget_row = {
-                        'Konto': account_name,
-                        'Kategori': category,
-                        'account_id': account_id  # Gömd kolumn för sparande
-                    }
-                    
-                    # Lägg till budget-värden per månad
-                    for month in range(1, 13):
-                        month_name = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun',
-                                    'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'][month-1]
-                        budget_row[month_name] = budget_values.get(account_id, {}).get(month, 0.0)
-                    
-                    budget_data.append(budget_row)
+                    accounts_by_category[category].append({
+                        'id': account_id,
+                        'name': account_name
+                    })
                 
-                if budget_data:
-                    st.info("💡 HELT SEPARERAD budget i BUDGET_DATABASE - Excel-data påverkas ALDRIG!")
+                # Knapp för att rensa budget
+                if st.button("🗑️ Rensa ALL budget-data", key="clear_budget"):
+                    if clear_budget_data():
+                        st.success("✅ Budget-data rensad!")
+                        st.rerun()
+                
+                # Visa konton per kategori
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("### 💚 Intäkter")
+                    for account in accounts_by_category['Intäkter']:
+                        if st.button(f"📊 {account['name']}", key=f"income_{account['id']}"):
+                            st.session_state.selected_account = account['id']
+                            st.session_state.selected_account_name = account['name']
+                            st.session_state.selected_category = 'Intäkter'
+                
+                with col2:
+                    st.markdown("### 💸 Kostnader")
+                    for account in accounts_by_category['Kostnader']:
+                        if st.button(f"📊 {account['name']}", key=f"cost_{account['id']}"):
+                            st.session_state.selected_account = account['id']
+                            st.session_state.selected_account_name = account['name']
+                            st.session_state.selected_category = 'Kostnader'
+                
+                # Om ett konto är valt, visa månadsredigering
+                if hasattr(st.session_state, 'selected_account'):
+                    account_id = st.session_state.selected_account
+                    account_name = st.session_state.selected_account_name
+                    category = st.session_state.selected_category
                     
-                    # Lägg till separata knappar
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button("🗑️ Rensa ENDAST budget-data", key="clear_budget"):
-                            if clear_budget_data():
-                                st.success("✅ Budget-data rensad (Excel-data behållen)!")
-                                st.rerun()
+                    st.markdown("---")
+                    st.markdown(f"### 📝 Budget för: **{account_name}** ({category})")
                     
-                    # Skapa redigerbar DataFrame med unique key
-                    budget_df = pd.DataFrame(budget_data)
+                    # Hämta befintliga budget-värden för detta konto
+                    budget_values = load_budget_values(selected_company_id, import_year)
+                    account_budget = budget_values.get(account_id, {})
                     
-                    # Redigerbar dataframe med helt separerat state
-                    edited_budget = st.data_editor(
-                        budget_df,
-                        column_config={
-                            'account_id': None,  # Göm denna kolumn
-                            'Konto': st.column_config.TextColumn('Konto', disabled=True),
-                            'Kategori': st.column_config.SelectboxColumn(
-                                'Kategori',
-                                options=['Intäkter', 'Kostnader'],
-                                required=True
-                            ),
-                            'Jan': st.column_config.NumberColumn('Jan', format="%.0f"),
-                            'Feb': st.column_config.NumberColumn('Feb', format="%.0f"),
-                            'Mar': st.column_config.NumberColumn('Mar', format="%.0f"),
-                            'Apr': st.column_config.NumberColumn('Apr', format="%.0f"),
-                            'Maj': st.column_config.NumberColumn('Maj', format="%.0f"),
-                            'Jun': st.column_config.NumberColumn('Jun', format="%.0f"),
-                            'Jul': st.column_config.NumberColumn('Jul', format="%.0f"),
-                            'Aug': st.column_config.NumberColumn('Aug', format="%.0f"),
-                            'Sep': st.column_config.NumberColumn('Sep', format="%.0f"),
-                            'Okt': st.column_config.NumberColumn('Okt', format="%.0f"),
-                            'Nov': st.column_config.NumberColumn('Nov', format="%.0f"),
-                            'Dec': st.column_config.NumberColumn('Dec', format="%.0f")
-                        },
-                        use_container_width=True,
-                        height=400,
-                        key=f"SAFE_budget_editor_{selected_company_id}_{import_year}"  # UNIKT key
-                    )
+                    # Skapa 12 columns för månader
+                    months = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec']
+                    cols = st.columns(4)  # 4 kolumner, 3 månader per kolumn
                     
-                    # Spara ändringar (UTAN st.rerun för att undvika konflikt)
-                    if not edited_budget.equals(budget_df):
-                        with st.spinner("Sparar budget till BUDGET_DATABASE (påverkar INTE Excel)..."):
-                            if save_budget_changes(selected_company_id, import_year, edited_budget, budget_df):
-                                st.success("✅ Budget sparad till BUDGET_DATABASE!")
-                                st.balloons()  # Istället för st.rerun()
-                            else:
-                                st.error("❌ Fel vid sparande av budget")
+                    for i, month_name in enumerate(months):
+                        month_idx = i + 1
+                        current_value = account_budget.get(month_idx, 0.0)
+                        
+                        with cols[i % 4]:
+                            new_value = st.number_input(
+                                f"{month_name}",
+                                value=float(current_value),
+                                step=1000.0,
+                                key=f"budget_{account_id}_{month_idx}",
+                                format="%.0f"
+                            )
+                            
+                            # Spara direkt om värdet ändrats
+                            if new_value != current_value:
+                                if save_single_budget_value(selected_company_id, import_year, account_id, account_name, category, month_idx, month_name, new_value):
+                                    st.success(f"✅ {month_name} sparad!", icon="💾")
+                                    # Uppdatera session state
+                                    if account_id not in budget_values:
+                                        budget_values[account_id] = {}
+                                    budget_values[account_id][month_idx] = new_value
                             
             else:
                 st.info("📝 Importera Excel-data först för att skapa budget")
