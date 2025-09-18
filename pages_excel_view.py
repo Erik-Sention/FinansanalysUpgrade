@@ -575,19 +575,28 @@ def show():
                     st.rerun()
 
                 if nuke_all_clicked:
-                    with st.warning("Är du säker? Detta raderar ALL DATA. Detta kan inte ångras."):
-                        colA, colB = st.columns(2)
-                        with colA:
-                            confirm = st.button("Ja, radera ALLT nu", key=f"confirm_nuke_all_{category}")
-                        with colB:
-                            cancel = st.button("Avbryt", key=f"cancel_nuke_all_{category}")
-                    if confirm:
-                        firebase_db = get_firebase_db()
-                        result = firebase_db.nuke_all_data()
-                        ok = sum(1 for v in result.values() if v)
-                        fail = sum(1 for v in result.values() if not v)
-                        st.success(f"☠︎ Nuke klar: {ok} noder raderade, {fail} misslyckades.")
-                        st.rerun()
+                    st.warning("☠︎ NUKE ALL DATA - Detta raderar ALLT från databasen!")
+                    colA, colB = st.columns(2)
+                    with colA:
+                        if st.button("JA, RADERA ALLT NU!", type="primary", key=f"confirm_nuke_all_{category}"):
+                            firebase_db = get_firebase_db()
+                            st.write("🔥 Börjar rensa...")
+                            
+                            # Debug token
+                            token = firebase_db._get_token()
+                            st.write(f"🔍 Token: {token[:20] if token else 'NONE'}...")
+                            
+                            try:
+                                result = firebase_db.nuke_all_data()
+                                st.write(f"🔥 Nuke resultat: {result}")
+                                ok = sum(1 for v in result.values() if v)
+                                fail = sum(1 for v in result.values() if not v)
+                                st.success(f"☠︎ Nuke klar: {ok} noder raderade, {fail} misslyckades.")
+                            except Exception as e:
+                                st.error(f"❌ Nuke MISSLYCKADES: {e}")
+                            st.rerun()
+                    with colB:
+                        st.button("Avbryt", key=f"cancel_nuke_all_{category}")
 
                 if save_clicked:
                     # Spara endast ändrade celler

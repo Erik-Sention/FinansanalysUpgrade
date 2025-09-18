@@ -319,7 +319,7 @@ class FirebaseDB:
         """Ta bort ALLA top-level noder i databasen (irreversibelt). Returnerar status per nod."""
         top_level_paths = [
             "companies",
-            "datasets",
+            "datasets", 
             "values",
             "raw_labels",
             "account_categories",
@@ -331,13 +331,30 @@ class FirebaseDB:
         ]
         results: Dict[str, bool] = {}
         token = self._get_token()
+        
+        print(f"🔥 NUKE: Starting with token: {token[:20] if token else 'NONE'}...")
+        
         for path in top_level_paths:
             try:
-                self.get_ref(path).remove(token)
-                results[path] = True
+                print(f"🔥 NUKE: Trying to delete path: {path}")
+                ref = self.get_ref(path)
+                
+                # Först kontrollera om noden finns
+                data = ref.get(token)
+                if data and data.val():
+                    print(f"🔥 NUKE: Path {path} has data, removing...")
+                    ref.remove(token)
+                    print(f"✅ NUKE: Successfully removed {path}")
+                    results[path] = True
+                else:
+                    print(f"ℹ️ NUKE: Path {path} is already empty/missing")
+                    results[path] = True  # Räkna som framgång om den redan är tom
+                    
             except Exception as e:
-                print(f"Error nuking path {path}: {e}")
+                print(f"❌ NUKE: Error removing path {path}: {e}")
                 results[path] = False
+                
+        print(f"🔥 NUKE: Completed. Results: {results}")
         return results
 
 # Global instans
