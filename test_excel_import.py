@@ -486,15 +486,16 @@ def save_budget_changes(company_id: str, year: int, edited_df: pd.DataFrame, ori
                 old_value = getattr(original_row, month_name, 0)
                 new_value = getattr(edited_row, month_name, 0)
                 
-                # Spara ALLA värden, inte bara ändringar
-                if True:  # Spara allt för att undvika konflikter
+                # Spara ENDAST om värdet ändrats
+                if old_value != new_value:
                     changes_made = True
+                    st.write(f"🔍 DEBUG: Ändring - {account_name}, månad {month_idx}: {old_value} → {new_value}")
                     
                     # HELT NY PATH-STRUKTUR
                     budget_path = f"BUDGET_DATABASE/{company_id}/{year}/accounts/{account_id}/months/{month_idx}"
                     budget_ref = firebase_db.get_ref(budget_path)
                     
-                    # Spara med mer info
+                    # Spara ENDAST ändrade värden
                     budget_ref.set({
                         'account_name': account_name,
                         'category': category,
@@ -503,9 +504,17 @@ def save_budget_changes(company_id: str, year: int, edited_df: pd.DataFrame, ori
                         'budget_amount': float(new_value) if new_value else 0.0,
                         'updated_at': datetime.now().isoformat()
                     }, firebase_db._get_token())
-                    
-                    if old_value != new_value:
-                        st.write(f"🔍 DEBUG: Ändring - {account_name}, månad {month_idx}: {old_value} → {new_value}")
+                
+                # Ta bort 0-värden från databasen (för att spara utrymme)
+                elif new_value == 0 or new_value == 0.0:
+                    # Om någon sätter ett värde till 0, ta bort posten
+                    try:
+                        budget_path = f"BUDGET_DATABASE/{company_id}/{year}/accounts/{account_id}/months/{month_idx}"
+                        budget_ref = firebase_db.get_ref(budget_path)
+                        budget_ref.remove(firebase_db._get_token())
+                        st.write(f"🗑️ DEBUG: Tog bort 0-värde - {account_name}, månad {month_idx}")
+                    except:
+                        pass  # Posten fanns kanske inte
         
         st.write(f"🔍 DEBUG: Budget sparad till BUDGET_DATABASE/{company_id}/{year}/")
         return changes_made
