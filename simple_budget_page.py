@@ -143,9 +143,8 @@ def show_simple_budget_page():
     company_id = selected_company['id']
     company_name = selected_company['name']
     
-    st.info(f"Valt företag: **{company_name}** | År: **{year}**")
     
-    # STEG 2: Välj konto
+    # STEG 2: Välj kategori och konto
     st.markdown("### 2. Välj konto")
     
     accounts = load_accounts_for_company(company_id)
@@ -153,17 +152,37 @@ def show_simple_budget_page():
         st.warning(f"Inga konton hittade för {company_name}")
         return
     
-    # Dropdown med kontonamn
-    account_options = {account['name']: account for account in accounts}
-    selected_account_name = st.selectbox(
-        "Välj konto att skapa budget för:",
-        list(account_options.keys()),
-        key="simple_account_select"
-    )
+    # Filtrera efter kategori
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        category_filter = st.selectbox(
+            "Kategori:",
+            ["Alla", "Intäkter", "Kostnader"],
+            key="category_filter"
+        )
+    
+    # Filtrera konton baserat på kategori
+    if category_filter == "Intäkter":
+        filtered_accounts = [acc for acc in accounts if acc.get('category', '').upper() == 'INTÄKTER']
+    elif category_filter == "Kostnader":
+        filtered_accounts = [acc for acc in accounts if acc.get('category', '').upper() == 'KOSTNADER']
+    else:
+        filtered_accounts = accounts
+    
+    if not filtered_accounts:
+        st.warning(f"Inga konton hittade för {category_filter}")
+        return
+    
+    with col2:
+        account_options = {account['name']: account for account in filtered_accounts}
+        selected_account_name = st.selectbox(
+            "Konto:",
+            list(account_options.keys()),
+            key="simple_account_select"
+        )
     
     selected_account = account_options[selected_account_name]
-    
-    st.info(f"Valt konto: **{selected_account_name}**")
     
     # STEG 3: Redigera månadsbudget
     st.markdown("### 3. Ange månadsbudget")
@@ -171,83 +190,50 @@ def show_simple_budget_page():
     # Ladda befintlig budget om den finns
     existing_budget = load_simple_budget(company_name, year, selected_account_name)
     
-    # 12 input-fält för månader i korrekt ordning (Jan-Dec)
+    # 12 input-fält för månader i korrekt ordning (Jan-Dec) - KOMPAKT
     months = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec']
     monthly_values = {}
     
-    # Dela upp i 3 rader med 4 månader per rad
-    # Rad 1: Jan-Apr
-    st.markdown("#### Q1 (Kvartal 1)")
-    cols1 = st.columns(4)
-    for i in range(4):
+    # Kompakt layout: Alla månader i 2 rader med 6 månader per rad
+    cols = st.columns(6)
+    for i in range(12):
         month = months[i]
-        with cols1[i]:
+        col_index = i % 6
+        with cols[col_index]:
             current_value = existing_budget.get(month, 0)
             monthly_values[month] = st.number_input(
                 f"{month}",
                 value=float(current_value),
                 step=1000.0,
                 key=f"simple_budget_{month}",
-                format="%.0f"
+                format="%.0f",
+                label_visibility="visible"
             )
     
-    # Rad 2: Maj-Aug
-    st.markdown("#### Q2 (Kvartal 2)")
-    cols2 = st.columns(4)
-    for i in range(4, 8):
-        month = months[i]
-        with cols2[i-4]:
-            current_value = existing_budget.get(month, 0)
-            monthly_values[month] = st.number_input(
-                f"{month}",
-                value=float(current_value),
-                step=1000.0,
-                key=f"simple_budget_{month}",
-                format="%.0f"
-            )
+    # SPARA-knapp - kompakt
+    total = sum(monthly_values.values())
+    col1, col2 = st.columns([2, 1])
     
-    # Rad 3: Sep-Dec
-    st.markdown("#### Q3-Q4 (Kvartal 3-4)")
-    cols3 = st.columns(4)
-    for i in range(8, 12):
-        month = months[i]
-        with cols3[i-8]:
-            current_value = existing_budget.get(month, 0)
-            monthly_values[month] = st.number_input(
-                f"{month}",
-                value=float(current_value),
-                step=1000.0,
-                key=f"simple_budget_{month}",
-                format="%.0f"
-            )
-    
-    # SPARA-knapp
-    st.markdown("---")
-    col1, col2, col3 = st.columns([2, 1, 2])
+    with col1:
+        st.metric("Total årsbudget", f"{total:,.0f} kr")
     
     with col2:
         if st.button("Spara budget", type="primary", use_container_width=True):
             if save_simple_budget(company_name, year, selected_account_name, monthly_values):
-                st.success("Budget har sparats")
+                st.success("✓ Sparat")
             else:
-                st.error("Fel vid sparande av budget")
+                st.error("Fel vid sparande")
     
-    # Visa befintliga budgetar
+    # Visa befintliga budgetar - kompakt
     if existing_budget and any(v != 0 for v in existing_budget.values()):
-        st.markdown("---")
-        st.markdown("### Aktuell budget")
-        
-        # Visa i tabell-format med rätt månadsordning
-        ordered_budget = {}
-        for month in months:
-            ordered_budget[month] = existing_budget.get(month, 0)
-        
-        budget_df = pd.DataFrame([ordered_budget])
-        st.dataframe(budget_df, use_container_width=True)
-        
-        # Räkna ut totaler
-        total = sum(existing_budget.values())
-        st.metric("Total årsbudget", f"{total:,.0f} kr")
+        with st.expander("📋 Visa sparad budget", expanded=False):
+            # Visa i tabell-format med rätt månadsordning
+            ordered_budget = {}
+            for month in months:
+                ordered_budget[month] = existing_budget.get(month, 0)
+            
+            budget_df = pd.DataFrame([ordered_budget])
+            st.dataframe(budget_df, use_container_width=True)
 
 if __name__ == "__main__":
     show_simple_budget_page()
