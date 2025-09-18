@@ -20,23 +20,24 @@ from utils_firebase_helpers import (
 from models_firebase_database import get_firebase_db
 
 def get_financial_data_with_categories(company_id, year):
-    """Hämta finansiell data med kategorier för företag och år"""
+    """Hämta finansiell data med kategorier för företag och år från TEST_DATA"""
     try:
         firebase_db = get_firebase_db()
         
-        # Hämta datasets för företaget och året
-        datasets = firebase_db.get_datasets(company_id)
-        target_dataset_id = None
-        for dataset_id, dataset_data in datasets.items():
-            if dataset_data.get('year') == year:
-                target_dataset_id = dataset_id
-                break
+        # Hämta TEST-DATA värden direkt (ingen dataset-struktur)
+        values_ref = firebase_db.get_ref("test_data/values")
+        values_data = values_ref.get(firebase_db._get_token())
+        all_values = values_data.val() if values_data and values_data.val() else {}
         
-        if not target_dataset_id:
-            return pd.DataFrame()
+        # Filtrera värden för rätt företag och år
+        values = {}
+        for value_id, value_data in all_values.items():
+            if (value_data.get('company_id') == company_id and 
+                value_data.get('year') == year and
+                value_data.get('type') == 'actual'):  # TEST_DATA använder 'type' istället för 'value_type'
+                values[value_id] = value_data
         
-        # Hämta värden för dataset
-        values = firebase_db.get_values(dataset_id=target_dataset_id)
+        print(f"🔍 Hittade {len(values)} värden för company_id={company_id}, year={year}")
         
         # Hämta referensdata från test_data (samma som budget-sidan)
         accounts_ref = firebase_db.get_ref("test_data/accounts")
@@ -47,17 +48,16 @@ def get_financial_data_with_categories(company_id, year):
         categories_data = categories_ref.get(firebase_db._get_token())
         categories = categories_data.val() if categories_data and categories_data.val() else {}
         
-        # Bygg DataFrame
+        # Bygg DataFrame från TEST_DATA struktur
         data = []
         for value_id, value_data in values.items():
-            if value_data.get('value_type') != 'faktiskt':
-                continue
-                
             account_id = value_data.get('account_id')
             account_data = accounts.get(account_id, {})
             
             category_id = account_data.get('category_id')
             category_data = categories.get(category_id, {})
+            
+            print(f"🔍 Value {value_id}: account_id={account_id}, category_id={category_id}, kategori={category_data.get('name', 'Okänd')}")
             
             data.append({
                 'account_name': account_data.get('name', 'Okänt konto'),
