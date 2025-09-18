@@ -427,28 +427,22 @@ def load_test_values(company_id: str, year: int = 2025):
         return {}
 
 def load_budget_values(company_id: str, year: int = 2025):
-    """Ladda budget-värden för ett företag och år"""
+    """Ladda budget-värden från BUDGET_DATABASE"""
     try:
         firebase_db = get_firebase_db()
-        budget_ref = firebase_db.get_ref("test_budget_data/values")
+        budget_ref = firebase_db.get_ref(f"BUDGET_DATABASE/{company_id}/{year}/accounts")
         data = budget_ref.get(firebase_db._get_token())
         
         if not (data and data.val()):
             return {}
         
-        # Filtrera budget-värden för företag och år
+        # Läs från ny struktur
         budget_values = {}
-        for value_id, value_data in data.val().items():
-            if (value_data.get('company_id') == company_id and 
-                value_data.get('year') == year):
-                
-                account_id = value_data.get('account_id')
-                month = value_data.get('month')
-                amount = value_data.get('amount', 0)
-                
-                if account_id not in budget_values:
-                    budget_values[account_id] = {}
-                budget_values[account_id][month] = amount
+        for account_id, account_data in data.val().items():
+            if 'months' in account_data:
+                budget_values[account_id] = {}
+                for month_idx, month_data in account_data['months'].items():
+                    budget_values[account_id][int(month_idx)] = month_data.get('budget_amount', 0)
         
         return budget_values
         
@@ -457,22 +451,25 @@ def load_budget_values(company_id: str, year: int = 2025):
         return {}
 
 def save_budget_changes(company_id: str, year: int, edited_df: pd.DataFrame, original_df: pd.DataFrame):
-    """Spara budget-ändringar till Firebase"""
+    """Spara budget-ändringar till HELT SEPARAT Firebase-struktur"""
     try:
-        st.write(f"🔍 DEBUG: Sparar budget för company_id: {company_id}, år: {year}")
+        st.write(f"🔍 DEBUG: Sparar budget till BUDGET_DATABASE för company_id: {company_id}, år: {year}")
         firebase_db = get_firebase_db()
-        budget_ref = firebase_db.get_ref("test_budget_data")
         
-        # Skapa metadata om det inte finns
+        # HELT NY STRUKTUR - inte "test_budget_data" utan "BUDGET_DATABASE"
+        budget_base_ref = firebase_db.get_ref("BUDGET_DATABASE")
+        
+        # Skapa struktur: BUDGET_DATABASE/company_1/2025/accounts/account_X/months/
+        company_budget_ref = firebase_db.get_ref(f"BUDGET_DATABASE/{company_id}/{year}")
+        
+        # Skapa metadata
         try:
-            meta_ref = firebase_db.get_ref("test_budget_data/meta")
-            meta_data = meta_ref.get(firebase_db._get_token())
-            if not (meta_data and meta_data.val()):
-                meta_ref.set({
-                    'created_at': datetime.now().isoformat(),
-                    'year': year,
-                    'description': 'Test budget data'
-                }, firebase_db._get_token())
+            meta_ref = firebase_db.get_ref(f"BUDGET_DATABASE/{company_id}/{year}/meta")
+            meta_ref.set({
+                'created_at': datetime.now().isoformat(),
+                'updated_at': datetime.now().isoformat(),
+                'description': f'Budget för {company_id} år {year}'
+            }, firebase_db._get_token())
         except:
             pass
         
@@ -482,45 +479,35 @@ def save_budget_changes(company_id: str, year: int, edited_df: pd.DataFrame, ori
         
         for idx, (edited_row, original_row) in enumerate(zip(edited_df.itertuples(), original_df.itertuples())):
             account_id = edited_row.account_id
+            account_name = edited_row.Konto
+            category = edited_row.Kategori
             
             for month_idx, month_name in enumerate(month_cols, 1):
                 old_value = getattr(original_row, month_name, 0)
                 new_value = getattr(edited_row, month_name, 0)
                 
-                # Om värdet har ändrats
-                if old_value != new_value:
+                # Spara ALLA värden, inte bara ändringar
+                if True:  # Spara allt för att undvika konflikter
                     changes_made = True
-                    st.write(f"🔍 DEBUG: Ändring - {account_id}, månad {month_idx}: {old_value} → {new_value}")
                     
-                    # Hitta eller skapa budget-post
-                    values_ref = firebase_db.get_ref("test_budget_data/values")
-                    existing_data = values_ref.get(firebase_db._get_token())
+                    # HELT NY PATH-STRUKTUR
+                    budget_path = f"BUDGET_DATABASE/{company_id}/{year}/accounts/{account_id}/months/{month_idx}"
+                    budget_ref = firebase_db.get_ref(budget_path)
                     
-                    budget_id = None
-                    if existing_data and existing_data.val():
-                        for bid, bdata in existing_data.val().items():
-                            if (bdata.get('company_id') == company_id and 
-                                bdata.get('year') == year and
-                                bdata.get('account_id') == account_id and
-                                bdata.get('month') == month_idx):
-                                budget_id = bid
-                                break
-                    
-                    # Skapa ny post om ingen finns
-                    if not budget_id:
-                        budget_id = f"budget_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{month_idx}_{account_id}"
-                    
-                    # Spara värdet
-                    budget_value_ref = firebase_db.get_ref(f"test_budget_data/values/{budget_id}")
-                    budget_value_ref.set({
-                        'company_id': company_id,
-                        'year': year,
-                        'account_id': account_id,
+                    # Spara med mer info
+                    budget_ref.set({
+                        'account_name': account_name,
+                        'category': category,
                         'month': month_idx,
-                        'amount': float(new_value) if new_value else 0.0,
+                        'month_name': month_name,
+                        'budget_amount': float(new_value) if new_value else 0.0,
                         'updated_at': datetime.now().isoformat()
                     }, firebase_db._get_token())
+                    
+                    if old_value != new_value:
+                        st.write(f"🔍 DEBUG: Ändring - {account_name}, månad {month_idx}: {old_value} → {new_value}")
         
+        st.write(f"🔍 DEBUG: Budget sparad till BUDGET_DATABASE/{company_id}/{year}/")
         return changes_made
         
     except Exception as e:
@@ -544,10 +531,10 @@ def clear_test_data():
         return False
 
 def clear_budget_data():
-    """Rensa ENDAST budget-data från Firebase"""
+    """Rensa ENDAST budget-data från BUDGET_DATABASE"""
     try:
         firebase_db = get_firebase_db()
-        budget_ref = firebase_db.get_ref("test_budget_data")
+        budget_ref = firebase_db.get_ref("BUDGET_DATABASE")
         budget_ref.remove(firebase_db._get_token())
         return True
     except Exception as e:
@@ -714,7 +701,7 @@ def show_excel_import_test():
             # BUDGET-SEKTION (SÄKER VERSION)
             st.markdown("---")
             st.markdown("## 💰 Budget för företaget")
-            st.markdown("*Sparas till `test_budget_data` - påverkar INTE Excel-data*")
+            st.markdown("*Sparas till `BUDGET_DATABASE` - HELT separerat från Excel-data*")
             
             if values:  # Om vi har Excel-data att basera budget på
                 # Hämta befintlig budget eller skapa tom
@@ -747,7 +734,7 @@ def show_excel_import_test():
                     budget_data.append(budget_row)
                 
                 if budget_data:
-                    st.info("💡 SÄKER budget-redigering - Excel-data påverkas INTE!")
+                    st.info("💡 HELT SEPARERAD budget i BUDGET_DATABASE - Excel-data påverkas ALDRIG!")
                     
                     # Lägg till separata knappar
                     col1, col2 = st.columns(2)
@@ -766,7 +753,11 @@ def show_excel_import_test():
                         column_config={
                             'account_id': None,  # Göm denna kolumn
                             'Konto': st.column_config.TextColumn('Konto', disabled=True),
-                            'Kategori': st.column_config.TextColumn('Kategori', disabled=True),
+                            'Kategori': st.column_config.SelectboxColumn(
+                                'Kategori',
+                                options=['Intäkter', 'Kostnader'],
+                                required=True
+                            ),
                             'Jan': st.column_config.NumberColumn('Jan', format="%.0f"),
                             'Feb': st.column_config.NumberColumn('Feb', format="%.0f"),
                             'Mar': st.column_config.NumberColumn('Mar', format="%.0f"),
@@ -787,9 +778,9 @@ def show_excel_import_test():
                     
                     # Spara ändringar (UTAN st.rerun för att undvika konflikt)
                     if not edited_budget.equals(budget_df):
-                        with st.spinner("Sparar budget till test_budget_data (påverkar INTE Excel)..."):
+                        with st.spinner("Sparar budget till BUDGET_DATABASE (påverkar INTE Excel)..."):
                             if save_budget_changes(selected_company_id, import_year, edited_budget, budget_df):
-                                st.success("✅ Budget sparad till test_budget_data!")
+                                st.success("✅ Budget sparad till BUDGET_DATABASE!")
                                 st.balloons()  # Istället för st.rerun()
                             else:
                                 st.error("❌ Fel vid sparande av budget")
@@ -803,7 +794,7 @@ def show_excel_import_test():
         # Visa placeholder för budget även här
         st.markdown("---")
         st.markdown("## 💰 Budget för företaget")
-        st.markdown("*Sparas till `test_budget_data` - påverkar INTE Excel-data*")
+        st.markdown("*Sparas till `BUDGET_DATABASE` - HELT separerat från Excel-data*")
         st.info("📭 Importera Excel-data först för att skapa budget")
 
 if __name__ == "__main__":
