@@ -665,105 +665,22 @@ def show_excel_import_test():
                 except Exception as e:
                     st.error(f"Debug fel: {e}")
             
-            # ENKEL BUDGET-SEKTION
+            # BUDGET-SEKTION FLYTTAD TILL EGEN SIDA
             st.markdown("---")
-            st.markdown("## 💰 Budget för företaget")
-            st.markdown("*Välj konto och redigera månad för månad - sparas direkt!*")
+            st.markdown("## 💰 Budget")
+            st.info("💡 Budget-funktionen finns nu på egen sida! Gå till '💰 Budget-redigering' i sidmenyn.")
             
-            if values:  # Om vi har Excel-data att basera budget på
-                # Hämta alla konton och organisera
-                accounts_by_category = {'Intäkter': [], 'Kostnader': []}
-                
-                for account_id, month_values in values.items():
-                    account_name = account_names.get(account_id, account_id)
-                    
-                    # Bestäm kategori baserat på kontonamn
-                    account_lower = account_name.lower()
-                    if any(word in account_lower for word in ['försäljning', 'intäkt', 'revenue', 'upplupen', 'gruppträning', 'cykel', 'resor', 'autogenererade']):
-                        category = "Intäkter"
-                    else:
-                        category = "Kostnader"
-                    
-                    accounts_by_category[category].append({
-                        'id': account_id,
-                        'name': account_name
-                    })
-                
-                # Knapp för att rensa budget
-                if st.button("🗑️ Rensa ALL budget-data", key="clear_budget"):
-                    if clear_budget_data():
-                        st.success("✅ Budget-data rensad!")
-                        st.rerun()
-                
-                # Visa konton per kategori
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.markdown("### 💚 Intäkter")
-                    for account in accounts_by_category['Intäkter']:
-                        if st.button(f"📊 {account['name']}", key=f"income_{account['id']}"):
-                            st.session_state.selected_account = account['id']
-                            st.session_state.selected_account_name = account['name']
-                            st.session_state.selected_category = 'Intäkter'
-                
-                with col2:
-                    st.markdown("### 💸 Kostnader")
-                    for account in accounts_by_category['Kostnader']:
-                        if st.button(f"📊 {account['name']}", key=f"cost_{account['id']}"):
-                            st.session_state.selected_account = account['id']
-                            st.session_state.selected_account_name = account['name']
-                            st.session_state.selected_category = 'Kostnader'
-                
-                # Om ett konto är valt, visa månadsredigering
-                if hasattr(st.session_state, 'selected_account'):
-                    account_id = st.session_state.selected_account
-                    account_name = st.session_state.selected_account_name
-                    category = st.session_state.selected_category
-                    
-                    st.markdown("---")
-                    st.markdown(f"### 📝 Budget för: **{account_name}** ({category})")
-                    
-                    # Hämta befintliga budget-värden för detta konto
-                    budget_values = load_budget_values(selected_company_id, import_year)
-                    account_budget = budget_values.get(account_id, {})
-                    
-                    # Skapa 12 columns för månader
-                    months = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec']
-                    cols = st.columns(4)  # 4 kolumner, 3 månader per kolumn
-                    
-                    for i, month_name in enumerate(months):
-                        month_idx = i + 1
-                        current_value = account_budget.get(month_idx, 0.0)
-                        
-                        with cols[i % 4]:
-                            new_value = st.number_input(
-                                f"{month_name}",
-                                value=float(current_value),
-                                step=1000.0,
-                                key=f"budget_{account_id}_{month_idx}",
-                                format="%.0f"
-                            )
-                            
-                            # Spara direkt om värdet ändrats
-                            if new_value != current_value:
-                                if save_single_budget_value(selected_company_id, import_year, account_id, account_name, category, month_idx, month_name, new_value):
-                                    st.success(f"✅ {month_name} sparad!", icon="💾")
-                                    # Uppdatera session state
-                                    if account_id not in budget_values:
-                                        budget_values[account_id] = {}
-                                    budget_values[account_id][month_idx] = new_value
-                            
-            else:
-                st.info("📝 Importera Excel-data först för att skapa budget")
+            if st.button("🚀 Gå till Budget-redigering", type="primary"):
+                st.switch_page("Budget-redigering")
                 
     else:
         st.info("📭 Ingen test-data importerad ännu")
         
         # Visa placeholder för budget även här
         st.markdown("---")
-        st.markdown("## 💰 Budget för företaget")
-        st.markdown("*Sparas till `BUDGET_DATABASE` - HELT separerat från Excel-data*")
-        st.info("📭 Importera Excel-data först för att skapa budget")
+        st.markdown("## 💰 Budget")
+        st.info("💡 Budget-funktionen finns nu på egen sida! Gå till '💰 Budget-redigering' i sidmenyn.")
+        st.info("📭 Importera Excel-data först, sedan kan du skapa budget")
 
 if __name__ == "__main__":
     show_excel_import_test()

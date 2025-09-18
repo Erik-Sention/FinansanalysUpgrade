@@ -34,6 +34,7 @@ try:
     import pages_excel_view as excel_view  # Root-level version som använder pyrebase
     from test_input_page import show_test_input
     from test_excel_import import show_excel_import_test
+    from budget_page import show_budget_page
     
 except ImportError as e:
     st.error(f"Import fel: {e}")
@@ -55,7 +56,7 @@ if firebase_auth.is_authenticated():
     # Navigation för inloggade användare (endast fungerende sidor)
     page = st.sidebar.selectbox(
         "Välj sida",
-        ["🧪 Test-input (Firebase)", "📊 Test Excel-import", "💾 Finansdatabas (Pyrebase)", "📈 Visualisering"],
+        ["🧪 Test-input (Firebase)", "📊 Test Excel-import", "💰 Budget-redigering", "💾 Finansdatabas (Pyrebase)", "📈 Visualisering"],
         index=1  # Börja med Excel-import
     )
     
@@ -69,6 +70,8 @@ if firebase_auth.is_authenticated():
         show_test_input()
     elif page == "📊 Test Excel-import":
         show_excel_import_test()
+    elif page == "💰 Budget-redigering":
+        show_budget_page()
     elif page == "💾 Finansdatabas (Pyrebase)":
         excel_view.show()
     elif page == "📈 Visualisering":
