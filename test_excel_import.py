@@ -700,7 +700,8 @@ def show_excel_import_test():
             
             # BUDGET-SEKTION
             st.markdown("---")
-            st.markdown("### 💰 Budget för företaget")
+            st.markdown("## 💰 Budget för företaget")
+            st.markdown("*Redigera budget-värden för varje konto och månad*")
             
             if values:  # Om vi har data att basera budget på
                 # Hämta befintlig budget eller skapa tom
@@ -773,9 +774,22 @@ def show_excel_import_test():
                             
             else:
                 st.info("📝 Importera Excel-data först för att skapa budget")
+        
+        # Visa budget-sektion även när det inte finns data
+        if not values:
+            st.markdown("---")
+            st.markdown("## 💰 Budget för företaget")
+            st.markdown("*Redigera budget-värden för varje konto och månad*")
+            st.info("📝 Importera Excel-data först för att skapa budget")
                 
     else:
         st.info("📭 Ingen test-data importerad ännu")
+        
+        # Visa placeholder för budget även här
+        st.markdown("---")
+        st.markdown("## 💰 Budget för företaget")
+        st.markdown("*Redigera budget-värden för varje konto och månad*")
+        st.info("📭 Importera Excel-data först för att skapa budget")
 
 if __name__ == "__main__":
     show_excel_import_test()
