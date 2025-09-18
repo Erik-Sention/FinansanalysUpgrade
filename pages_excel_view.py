@@ -587,13 +587,14 @@ def show():
                             st.write(f"🔍 Token: {token[:20] if token else 'NONE'}...")
                             
                             try:
-                                result = firebase_db.nuke_all_data()
-                                st.write(f"🔥 Nuke resultat: {result}")
-                                ok = sum(1 for v in result.values() if v)
-                                fail = sum(1 for v in result.values() if not v)
-                                st.success(f"☠︎ Nuke klar: {ok} noder raderade, {fail} misslyckades.")
+                                success = firebase_db.nuke_all_data()
+                                if success:
+                                    st.success("☠︎ HELA DATABASEN RENSAD! 🔥")
+                                    st.balloons()
+                                else:
+                                    st.error("❌ Nuke misslyckades - kolla loggar")
                             except Exception as e:
-                                st.error(f"❌ Nuke MISSLYCKADES: {e}")
+                                st.error(f"❌ Nuke KRASCHADE: {e}")
                             st.rerun()
                     with colB:
                         st.button("Avbryt", key=f"cancel_nuke_all_{category}")

@@ -315,47 +315,22 @@ class FirebaseDB:
             print(f"Error nuking all budget data: {e}")
         return removed
 
-    def nuke_all_data(self) -> Dict[str, bool]:
-        """Ta bort ALLA top-level noder i databasen (irreversibelt). Returnerar status per nod."""
-        top_level_paths = [
-            "companies",
-            "datasets", 
-            "values",
-            "raw_labels",
-            "account_categories",
-            "accounts",
-            "budgets",
-            "budget_values",
-            "seasonality_indices",
-            "seasonality_values"
-        ]
-        results: Dict[str, bool] = {}
-        token = self._get_token()
-        
-        print(f"🔥 NUKE: Starting with token: {token[:20] if token else 'NONE'}...")
-        
-        for path in top_level_paths:
-            try:
-                print(f"🔥 NUKE: Trying to delete path: {path}")
-                ref = self.get_ref(path)
-                
-                # Först kontrollera om noden finns
-                data = ref.get(token)
-                if data and data.val():
-                    print(f"🔥 NUKE: Path {path} has data, removing...")
-                    ref.remove(token)
-                    print(f"✅ NUKE: Successfully removed {path}")
-                    results[path] = True
-                else:
-                    print(f"ℹ️ NUKE: Path {path} is already empty/missing")
-                    results[path] = True  # Räkna som framgång om den redan är tom
-                    
-            except Exception as e:
-                print(f"❌ NUKE: Error removing path {path}: {e}")
-                results[path] = False
-                
-        print(f"🔥 NUKE: Completed. Results: {results}")
-        return results
+    def nuke_all_data(self) -> bool:
+        """Ta bort HELA databasen genom att sätta roten till null (rätt metod!)."""
+        try:
+            token = self._get_token()
+            print(f"🔥 NUKE: Starting complete database wipe with token: {token[:20] if token else 'NONE'}...")
+            
+            # Sätt hela databasen till null (motsvarar JavaScript set(dbRef, null))
+            root_ref = self.db  # Root av databasen
+            root_ref.set(None, token)  # Pyrebase ekvivalent till set(dbRef, null)
+            
+            print("✅ NUKE: Hela databasen rensad framgångsrikt!")
+            return True
+            
+        except Exception as e:
+            print(f"❌ NUKE: Fel vid rensning av hela databasen: {e}")
+            return False
 
 # Global instans
 def get_firebase_db():
