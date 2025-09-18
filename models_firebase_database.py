@@ -321,15 +321,59 @@ class FirebaseDB:
             token = self._get_token()
             print(f"🔥 NUKE: Starting complete database wipe with token: {token[:20] if token else 'NONE'}...")
             
-            # Sätt hela databasen till null (motsvarar JavaScript set(dbRef, null))
-            root_ref = self.db  # Root av databasen
-            root_ref.set(None, token)  # Pyrebase ekvivalent till set(dbRef, null)
+            # Prova olika metoder för att rensa databasen
+            try:
+                # Metod 1: Sätt root till None
+                print("🔥 NUKE: Trying method 1 - root.set(None)")
+                self.db.set(None, token)
+                print("✅ NUKE: Method 1 successful!")
+                return True
+            except Exception as e1:
+                print(f"❌ NUKE: Method 1 failed: {e1}")
+                
+            try:
+                # Metod 2: Använd get_ref("")
+                print("🔥 NUKE: Trying method 2 - get_ref('').set(None)")
+                root_ref = self.get_ref("")
+                root_ref.set(None, token)
+                print("✅ NUKE: Method 2 successful!")
+                return True
+            except Exception as e2:
+                print(f"❌ NUKE: Method 2 failed: {e2}")
+                
+            try:
+                # Metod 3: Använd remove på root
+                print("🔥 NUKE: Trying method 3 - get_ref('').remove()")
+                root_ref = self.get_ref("")
+                root_ref.remove(token)
+                print("✅ NUKE: Method 3 successful!")
+                return True
+            except Exception as e3:
+                print(f"❌ NUKE: Method 3 failed: {e3}")
+                
+            # Metod 4: Fallback - ta bort varje top-level nod manuellt
+            print("🔥 NUKE: Trying method 4 - delete each top-level node manually")
+            top_nodes = ["companies", "datasets", "values", "raw_labels", "account_categories", 
+                        "accounts", "budgets", "budget_values", "seasonality_indices", "seasonality_values"]
             
-            print("✅ NUKE: Hela databasen rensad framgångsrikt!")
-            return True
+            deleted = 0
+            for node in top_nodes:
+                try:
+                    self.get_ref(node).remove(token)
+                    deleted += 1
+                    print(f"✅ NUKE: Deleted node: {node}")
+                except Exception as e:
+                    print(f"⚠️ NUKE: Could not delete {node}: {e}")
+            
+            if deleted > 0:
+                print(f"✅ NUKE: Method 4 partially successful! Deleted {deleted}/{len(top_nodes)} nodes")
+                return True
+            else:
+                print("❌ NUKE: Alla metoder misslyckades!")
+                return False
             
         except Exception as e:
-            print(f"❌ NUKE: Fel vid rensning av hela databasen: {e}")
+            print(f"❌ NUKE: Kritiskt fel: {e}")
             return False
 
 # Global instans
