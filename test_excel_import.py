@@ -144,9 +144,7 @@ def find_excel_sections(df: pd.DataFrame) -> dict:
             except:
                 continue
         
-        # Debug: visa vad vi hittar på varje rad (första 100 rader)
-        if idx < 100 and cell_value.strip():
-            print(f"  📋 Rad {idx}: '{cell_value}'")
+        # Vi behöver inte denna debug längre
         
         # Leta efter EXAKT vad som finns i Excel-filen
         if cell_value_lower == 'rörelsens intäkter' and revenue_start is None:
@@ -174,32 +172,44 @@ def find_excel_sections(df: pd.DataFrame) -> dict:
         
     return sections
 
-def categorize_account_by_position(account_name: str, row_index: int, sections: dict) -> str:
+def categorize_account_by_values(account_name: str, row_data, month_cols: list) -> str:
     """
-    Kategorisera konto baserat på dess position i Excel-strukturen
+    Kategorisera konto baserat på om värdena är positiva (intäkter) eller negativa (kostnader)
     """
-    # Kolla om raden är inom intäkter sektion
-    if 'intäkter' in sections:
-        start, end = sections['intäkter']
-        if start <= row_index <= end:
-            return "Intäkter"
+    values = []
     
-    # Kolla om raden är inom kostnader sektion
-    if 'kostnader' in sections:
-        start, end = sections['kostnader']
-        if start <= row_index <= end:
-            return "Kostnader"
+    # Samla alla månadsvärden för detta konto
+    for month_col in month_cols:
+        if month_col in row_data and pd.notna(row_data[month_col]):
+            try:
+                value = float(row_data[month_col])
+                if value != 0:  # Ignorera nollvärden
+                    values.append(value)
+            except (ValueError, TypeError):
+                continue
     
-    # Fallback till nyckelord-baserad kategorisering
-    name_lower = account_name.lower()
+    if not values:
+        print(f"   ⚠️ Inga värden hittade för {account_name}, defaultar till Kostnader")
+        return "Kostnader"
     
-    # Intäktsnyckelord
-    revenue_keywords = ['försäljning', 'intäkt', 'revenue', 'omsättning']
-    if any(keyword in name_lower for keyword in revenue_keywords):
+    # Räkna positiva och negativa värden
+    positive_count = sum(1 for v in values if v > 0)
+    negative_count = sum(1 for v in values if v < 0)
+    
+    print(f"   📊 {account_name}: {positive_count} positiva, {negative_count} negativa värden")
+    
+    # Kategorisera baserat på majoritet av värden
+    if positive_count > negative_count:
         return "Intäkter"
-    
-    # Default till kostnader (mest troligt för okategoriserade konton)
-    return "Kostnader"
+    elif negative_count > positive_count:
+        return "Kostnader"
+    else:
+        # Om lika många positiva och negativa, kolla genomsnitt
+        avg_value = sum(values) / len(values)
+        if avg_value > 0:
+            return "Intäkter"
+        else:
+            return "Kostnader"
 
 def save_test_data_to_firebase(df: pd.DataFrame) -> bool:
     """
@@ -217,10 +227,8 @@ def save_test_data_to_firebase(df: pd.DataFrame) -> bool:
         st.info("🔍 Analyserar Excel-data...")
         st.write("**Kolumner hittade:**", list(df.columns))
         
-        # Analysera Excel-struktur för att hitta intäkt/kostnad-sektioner
-        st.info("📋 Analyserar Excel-struktur för kategorisering...")
-        sections = find_excel_sections(df)
-        st.write("**Hittade sektioner:**", sections)
+        # Kategoriserar baserat på om värdena är positiva (intäkter) eller negativa (kostnader)
+        st.info("📊 Kategoriserar baserat på värdenas tecken (positiva = intäkter, negativa = kostnader)")
         
         # Försök identifiera kolumner automatiskt
         company_col = None
@@ -354,13 +362,13 @@ def save_test_data_to_firebase(df: pd.DataFrame) -> bool:
                 account_name = str(row[account_col])
                 account_id_map[account_name] = account_id
                 
-                # Bestäm kategori ALLTID baserat på Excel-struktur
-                category_name = categorize_account_by_position(account_name, original_index, sections)
+                # Bestäm kategori baserat på om värdena är positiva eller negativa
+                category_name = categorize_account_by_values(account_name, row, month_cols)
                 category_id = category_id_map.get(category_name, "category_2")
                 
                 # Debugg-info för ALLA konton
-                print(f"📊 Konto: '{account_name}' på rad {original_index} → {category_name}")
-                st.write(f"🔍 **{account_name}** (rad {original_index}) → **{category_name}**")
+                print(f"💰 Konto: '{account_name}' → {category_name}")
+                st.write(f"🔍 **{account_name}** → **{category_name}**")
                 
                 test_data["accounts"][account_id] = {
                     "name": account_name,
