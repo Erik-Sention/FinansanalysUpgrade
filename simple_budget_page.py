@@ -119,8 +119,8 @@ def load_simple_budget(company_name: str, year: int, account_name: str):
 
 def show_simple_budget_page():
     """Visa ENKEL budget-sida"""
-    st.title("💰 Skapa Budget")
-    st.markdown("**Enkelt budgetverktyg med tydliga namn**")
+    st.title("📊 Budgethantering")
+    st.markdown("Skapa och hantera budgetar för företagets konton")
     
     # STEG 1: Ladda företag och år
     companies, year = load_companies_and_years()
@@ -129,7 +129,7 @@ def show_simple_budget_page():
         st.warning("📭 Ingen Excel-data importerad. Gå till 'Test Excel-import' först.")
         return
     
-    st.markdown("## 🏢 Steg 1: Välj företag")
+    st.markdown("### 1. Välj företag")
     
     # Dropdown med företagsnamn
     company_options = {company['display_name']: company for company in companies}
@@ -143,10 +143,10 @@ def show_simple_budget_page():
     company_id = selected_company['id']
     company_name = selected_company['name']
     
-    st.success(f"✅ Valt företag: **{company_name}** (År: **{year}**)")
+    st.info(f"Valt företag: **{company_name}** | År: **{year}**")
     
     # STEG 2: Välj konto
-    st.markdown("## 📊 Steg 2: Välj konto")
+    st.markdown("### 2. Välj konto")
     
     accounts = load_accounts_for_company(company_id)
     if not accounts:
@@ -163,27 +163,58 @@ def show_simple_budget_page():
     
     selected_account = account_options[selected_account_name]
     
-    st.success(f"✅ Valt konto: **{selected_account_name}**")
+    st.info(f"Valt konto: **{selected_account_name}**")
     
     # STEG 3: Redigera månadsbudget
-    st.markdown("## 💰 Steg 3: Ange månadsbudget")
+    st.markdown("### 3. Ange månadsbudget")
     
     # Ladda befintlig budget om den finns
     existing_budget = load_simple_budget(company_name, year, selected_account_name)
     
-    # 12 input-fält för månader
+    # 12 input-fält för månader i korrekt ordning (Jan-Dec)
     months = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec']
     monthly_values = {}
     
-    # Dela upp i 4 kolumner (3 månader per kolumn)
-    cols = st.columns(4)
-    
-    for i, month in enumerate(months):
-        col_index = i % 4
-        with cols[col_index]:
+    # Dela upp i 3 rader med 4 månader per rad
+    # Rad 1: Jan-Apr
+    st.markdown("#### Q1 (Kvartal 1)")
+    cols1 = st.columns(4)
+    for i in range(4):
+        month = months[i]
+        with cols1[i]:
             current_value = existing_budget.get(month, 0)
             monthly_values[month] = st.number_input(
-                f"**{month}**",
+                f"{month}",
+                value=float(current_value),
+                step=1000.0,
+                key=f"simple_budget_{month}",
+                format="%.0f"
+            )
+    
+    # Rad 2: Maj-Aug
+    st.markdown("#### Q2 (Kvartal 2)")
+    cols2 = st.columns(4)
+    for i in range(4, 8):
+        month = months[i]
+        with cols2[i-4]:
+            current_value = existing_budget.get(month, 0)
+            monthly_values[month] = st.number_input(
+                f"{month}",
+                value=float(current_value),
+                step=1000.0,
+                key=f"simple_budget_{month}",
+                format="%.0f"
+            )
+    
+    # Rad 3: Sep-Dec
+    st.markdown("#### Q3-Q4 (Kvartal 3-4)")
+    cols3 = st.columns(4)
+    for i in range(8, 12):
+        month = months[i]
+        with cols3[i-8]:
+            current_value = existing_budget.get(month, 0)
+            monthly_values[month] = st.number_input(
+                f"{month}",
                 value=float(current_value),
                 step=1000.0,
                 key=f"simple_budget_{month}",
@@ -192,28 +223,31 @@ def show_simple_budget_page():
     
     # SPARA-knapp
     st.markdown("---")
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([2, 1, 2])
     
     with col2:
-        if st.button("💾 Spara Budget", type="primary", use_container_width=True):
+        if st.button("Spara budget", type="primary", use_container_width=True):
             if save_simple_budget(company_name, year, selected_account_name, monthly_values):
-                st.success("🎉 Budget sparad!")
-                st.balloons()
+                st.success("Budget har sparats")
             else:
-                st.error("❌ Fel vid sparande")
+                st.error("Fel vid sparande av budget")
     
     # Visa befintliga budgetar
     if existing_budget and any(v != 0 for v in existing_budget.values()):
         st.markdown("---")
-        st.markdown("### 📋 Aktuell budget")
+        st.markdown("### Aktuell budget")
         
-        # Visa i tabell-format
-        budget_df = pd.DataFrame([existing_budget])
+        # Visa i tabell-format med rätt månadsordning
+        ordered_budget = {}
+        for month in months:
+            ordered_budget[month] = existing_budget.get(month, 0)
+        
+        budget_df = pd.DataFrame([ordered_budget])
         st.dataframe(budget_df, use_container_width=True)
         
         # Räkna ut totaler
         total = sum(existing_budget.values())
-        st.metric("💰 Total årsbudget", f"{total:,.0f} kr")
+        st.metric("Total årsbudget", f"{total:,.0f} kr")
 
 if __name__ == "__main__":
     show_simple_budget_page()
