@@ -379,24 +379,17 @@ def load_test_accounts(company_id: str):
             for cat_id, cat_data in categories_data.val().items():
                 categories[cat_id] = cat_data['name']
         
-        # Filtrera konton för företag
+        # Filtrera konton för företag (enkel version)
         accounts = []
-        st.write(f"🔍 DEBUG: Totalt {len(accounts_data.val())} konton i databasen")
-        
         for account_id, account_data in accounts_data.val().items():
-            account_company_id = account_data.get('company_id')
-            st.write(f"🔍 DEBUG: Konto `{account_data.get('name', 'Unknown')}` har company_id: `{account_company_id}`")
-            
-            if account_company_id == company_id:
+            if account_data.get('company_id') == company_id:
                 accounts.append({
                     'id': account_id,
                     'name': account_data['name'],
                     'category': categories.get(account_data.get('category_id', ''), 'Okänd'),
                     'category_id': account_data.get('category_id', '')
                 })
-                st.write(f"✅ MATCH: Lade till konto `{account_data['name']}`")
         
-        st.write(f"🔍 DEBUG: Returnerar {len(accounts)} matchande konton")
         return accounts
         
     except Exception as e:
@@ -530,45 +523,76 @@ def show_excel_import_test():
             except:
                 import_year = 2025
             
-            # Debug: visa company_id
-            st.write(f"🔍 DEBUG: Söker konton för company_id: `{selected_company_id}`")
+            # Ladda och visa all data direkt från values  
+            st.markdown(f"#### 📊 Data för {selected_company_name} (År: {import_year})")
             
-            # Visa konton för valt företag
-            accounts = load_test_accounts(selected_company_id)
-            st.write(f"🔍 DEBUG: Hittade {len(accounts)} konton")
+            # Hämta alla värden för företaget
+            values = load_test_values(selected_company_id, import_year)
             
-            if accounts:
-                st.markdown(f"#### 📋 Konton för {selected_company_name} (År: {import_year})")
+            if values:
+                st.success(f"✅ Hittade data för {len(values)} konton")
                 
-                # Skapa översikt-tabell
-                overview_data = []
-                values = load_test_values(selected_company_id, import_year)
+                # Hämta kontonamn från accounts (för display)
+                try:
+                    firebase_db = get_firebase_db()
+                    accounts_ref = firebase_db.get_ref("test_data/accounts")
+                    accounts_data = accounts_ref.get(firebase_db._get_token())
+                    
+                    account_names = {}
+                    if accounts_data and accounts_data.val():
+                        for acc_id, acc_data in accounts_data.val().items():
+                            account_names[acc_id] = acc_data.get('name', acc_id)
+                except:
+                    account_names = {}
                 
-                for account in accounts:
-                    account_id = account['id']
+                # Skapa display-tabell
+                display_data = []
+                for account_id, month_values in values.items():
+                    account_name = account_names.get(account_id, account_id)
+                    
                     row = {
-                        'Konto': account['name'],
-                        'Kategori': account['category']
+                        'Företag': selected_company_name.split(' (')[0],  # Ta bort (location)
+                        'År': import_year,
+                        'Konto': account_name,
+                        'Kategori': ''  # Kan läggas till senare om behövs
                     }
                     
-                    # Lägg till månadsdata
-                    months = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun']
-                    total = 0
-                    for month_idx, month_name in enumerate(months, 1):
-                        amount = values.get(account_id, {}).get(month_idx, 0)
-                        row[month_name] = f"{amount:,.0f}" if amount != 0 else "-"
-                        total += amount
+                    # Lägg till månadskolumner
+                    for month in range(1, 13):
+                        month_name = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun',
+                                    'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'][month-1]
+                        row[month_name] = month_values.get(month, 0)
                     
-                    row['Totalt'] = f"{total:,.0f}"
-                    overview_data.append(row)
+                    display_data.append(row)
                 
-                if overview_data:
-                    overview_df = pd.DataFrame(overview_data)
-                    st.dataframe(overview_df, use_container_width=True)
+                if display_data:
+                    df_display = pd.DataFrame(display_data)
+                    st.dataframe(df_display, use_container_width=True, height=400)
+                    st.info(f"📊 Visar {len(display_data)} rader med finansiell data")
                 else:
-                    st.warning("Ingen data hittad för detta företag")
+                    st.warning("Inga värden att visa")
             else:
-                st.warning("Inga konton hittade för detta företag")
+                st.warning(f"Ingen data hittad för {selected_company_name} år {import_year}")
+                
+                # Debug för att se vad som finns
+                st.write("🔍 DEBUG: Kontrollerar vad som finns i databasen...")
+                try:
+                    firebase_db = get_firebase_db()
+                    values_ref = firebase_db.get_ref("test_data/values")
+                    all_values = values_ref.get(firebase_db._get_token())
+                    
+                    if all_values and all_values.val():
+                        unique_companies = set()
+                        unique_years = set()
+                        for val_data in all_values.val().values():
+                            unique_companies.add(val_data.get('company_id'))
+                            unique_years.add(val_data.get('year'))
+                        
+                        st.write(f"📋 Company IDs i databasen: {list(unique_companies)}")
+                        st.write(f"📋 År i databasen: {list(unique_years)}")
+                        st.write(f"🎯 Söker efter: company_id='{selected_company_id}', year={import_year}")
+                except Exception as e:
+                    st.error(f"Debug fel: {e}")
     else:
         st.info("📭 Ingen test-data importerad ännu")
 
