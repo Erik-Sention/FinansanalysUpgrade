@@ -700,90 +700,11 @@ def show_excel_import_test():
                 except Exception as e:
                     st.error(f"Debug fel: {e}")
             
-            # BUDGET-SEKTION
+            # BUDGET-SEKTION (TILLFÄLLIGT INAKTIVERAD)
             st.markdown("---")
             st.markdown("## 💰 Budget för företaget")
-            st.markdown("*Redigera budget-värden för varje konto och månad*")
-            
-            if values:  # Om vi har data att basera budget på
-                # Hämta befintlig budget eller skapa tom
-                budget_values = load_budget_values(selected_company_id, import_year)
-                
-                # Skapa budget-tabell baserad på befintliga konton
-                budget_data = []
-                for account_id, month_values in values.items():
-                    account_name = account_names.get(account_id, account_id)
-                    
-                    # Bestäm kategori baserat på kontonamn
-                    account_lower = account_name.lower()
-                    if any(word in account_lower for word in ['försäljning', 'intäkt', 'revenue', 'upplupen', 'gruppträning', 'cykel', 'resor', 'autogenererade']):
-                        category = "Intäkter"
-                    else:
-                        category = "Kostnader"
-                    
-                    budget_row = {
-                        'Konto': account_name,
-                        'Kategori': category,
-                        'account_id': account_id  # Gömd kolumn för sparande
-                    }
-                    
-                    # Lägg till budget-värden per månad
-                    for month in range(1, 13):
-                        month_name = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun',
-                                    'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'][month-1]
-                        budget_row[month_name] = budget_values.get(account_id, {}).get(month, 0.0)
-                    
-                    budget_data.append(budget_row)
-                
-                if budget_data:
-                    st.info("💡 Redigera budget-värden nedan. Ändringar sparas automatiskt!")
-                    
-                    # Skapa redigerbar DataFrame
-                    budget_df = pd.DataFrame(budget_data)
-                    
-                    # Redigerbar dataframe
-                    edited_budget = st.data_editor(
-                        budget_df,
-                        column_config={
-                            'account_id': None,  # Göm denna kolumn
-                            'Konto': st.column_config.TextColumn('Konto', disabled=True),
-                            'Kategori': st.column_config.TextColumn('Kategori', disabled=True),
-                            'Jan': st.column_config.NumberColumn('Jan', format="%.0f"),
-                            'Feb': st.column_config.NumberColumn('Feb', format="%.0f"),
-                            'Mar': st.column_config.NumberColumn('Mar', format="%.0f"),
-                            'Apr': st.column_config.NumberColumn('Apr', format="%.0f"),
-                            'Maj': st.column_config.NumberColumn('Maj', format="%.0f"),
-                            'Jun': st.column_config.NumberColumn('Jun', format="%.0f"),
-                            'Jul': st.column_config.NumberColumn('Jul', format="%.0f"),
-                            'Aug': st.column_config.NumberColumn('Aug', format="%.0f"),
-                            'Sep': st.column_config.NumberColumn('Sep', format="%.0f"),
-                            'Okt': st.column_config.NumberColumn('Okt', format="%.0f"),
-                            'Nov': st.column_config.NumberColumn('Nov', format="%.0f"),
-                            'Dec': st.column_config.NumberColumn('Dec', format="%.0f")
-                        },
-                        use_container_width=True,
-                        height=400,
-                        key=f"budget_editor_{selected_company_id}_{import_year}"
-                    )
-                    
-                    # Spara ändringar automatiskt
-                    if not edited_budget.equals(budget_df):
-                        with st.spinner("Sparar budget..."):
-                            if save_budget_changes(selected_company_id, import_year, edited_budget, budget_df):
-                                st.success("✅ Budget sparad!")
-                                # Ta bort st.rerun() för att undvika konflikt
-                            else:
-                                st.error("❌ Fel vid sparande av budget")
-                            
-            else:
-                st.info("📝 Importera Excel-data först för att skapa budget")
-        
-        # Visa budget-sektion även när det inte finns data
-        if not values:
-            st.markdown("---")
-            st.markdown("## 💰 Budget för företaget")
-            st.markdown("*Redigera budget-värden för varje konto och månad*")
-            st.info("📝 Importera Excel-data först för att skapa budget")
+            st.warning("⚠️ Budget-funktionen är tillfälligt inaktiverad för att förhindra dataförlust")
+            st.info("Vi fixar detta så att budget aldrig påverkar Excel-datan")
                 
     else:
         st.info("📭 Ingen test-data importerad ännu")
@@ -791,8 +712,8 @@ def show_excel_import_test():
         # Visa placeholder för budget även här
         st.markdown("---")
         st.markdown("## 💰 Budget för företaget")
-        st.markdown("*Redigera budget-värden för varje konto och månad*")
-        st.info("📭 Importera Excel-data först för att skapa budget")
+        st.warning("⚠️ Budget-funktionen är tillfälligt inaktiverad för att förhindra dataförlust")
+        st.info("📭 Importera Excel-data först, sedan fixar vi budget-funktionen")
 
 if __name__ == "__main__":
     show_excel_import_test()
