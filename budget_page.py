@@ -230,6 +230,10 @@ def show_budget_page():
         budget_values = load_budget_values(selected_company_id, import_year)
         account_budget = budget_values.get(account_id, {})
         
+        # DEBUG: Visa vad som laddas
+        st.write(f"🔍 DEBUG: Budget-värden för {account_id}: {account_budget}")
+        st.write(f"🔍 DEBUG: Alla budget-värden: {budget_values}")
+        
         # Månadsredigering i 3 rader
         months = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec']
         
