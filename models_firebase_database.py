@@ -315,6 +315,31 @@ class FirebaseDB:
             print(f"Error nuking all budget data: {e}")
         return removed
 
+    def nuke_all_data(self) -> Dict[str, bool]:
+        """Ta bort ALLA top-level noder i databasen (irreversibelt). Returnerar status per nod."""
+        top_level_paths = [
+            "companies",
+            "datasets",
+            "values",
+            "raw_labels",
+            "account_categories",
+            "accounts",
+            "budgets",
+            "budget_values",
+            "seasonality_indices",
+            "seasonality_values"
+        ]
+        results: Dict[str, bool] = {}
+        token = self._get_token()
+        for path in top_level_paths:
+            try:
+                self.get_ref(path).remove(token)
+                results[path] = True
+            except Exception as e:
+                print(f"Error nuking path {path}: {e}")
+                results[path] = False
+        return results
+
 # Global instans
 def get_firebase_db():
     """Hämta Firebase databas instans"""

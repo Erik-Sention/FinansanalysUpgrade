@@ -552,17 +552,42 @@ def show():
                     key=f"grid_{category}"
                 )
 
-                cols = st.columns([1,1,3])
+                cols = st.columns([1,1,2,2])
                 with cols[0]:
                     save_clicked = st.button(f"💾 Spara budget – {category}", type="primary", key=f"save_{category}")
                 with cols[1]:
                     reset_clicked = st.button("🧹 Rensa detta år", key=f"reset_{category}")
+                with cols[2]:
+                    nuke_budget_clicked = st.button("☢︎ Rensa ALL budget", key=f"nuke_budget_{category}")
+                with cols[3]:
+                    nuke_all_clicked = st.button("☠︎ Nuke ALL DATA", key=f"nuke_all_{category}")
 
                 if reset_clicked:
                     firebase_db = get_firebase_db()
                     removed = firebase_db.reset_budget_for_company_year(selected_company_id, selected_year)
                     st.success(f"🧹 Rensade {removed} budgetvärden för {selected_year}.")
                     st.rerun()
+
+                if nuke_budget_clicked:
+                    firebase_db = get_firebase_db()
+                    removed = firebase_db.nuke_all_budget_data()
+                    st.success(f"☢︎ Tog bort {removed} rader i budget_values och alla budgets.")
+                    st.rerun()
+
+                if nuke_all_clicked:
+                    with st.warning("Är du säker? Detta raderar ALL DATA. Detta kan inte ångras."):
+                        colA, colB = st.columns(2)
+                        with colA:
+                            confirm = st.button("Ja, radera ALLT nu", key=f"confirm_nuke_all_{category}")
+                        with colB:
+                            cancel = st.button("Avbryt", key=f"cancel_nuke_all_{category}")
+                    if confirm:
+                        firebase_db = get_firebase_db()
+                        result = firebase_db.nuke_all_data()
+                        ok = sum(1 for v in result.values() if v)
+                        fail = sum(1 for v in result.values() if not v)
+                        st.success(f"☠︎ Nuke klar: {ok} noder raderade, {fail} misslyckades.")
+                        st.rerun()
 
                 if save_clicked:
                     # Spara endast ändrade celler
