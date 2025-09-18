@@ -381,15 +381,22 @@ def load_test_accounts(company_id: str):
         
         # Filtrera konton för företag
         accounts = []
+        st.write(f"🔍 DEBUG: Totalt {len(accounts_data.val())} konton i databasen")
+        
         for account_id, account_data in accounts_data.val().items():
-            if account_data.get('company_id') == company_id:
+            account_company_id = account_data.get('company_id')
+            st.write(f"🔍 DEBUG: Konto `{account_data.get('name', 'Unknown')}` har company_id: `{account_company_id}`")
+            
+            if account_company_id == company_id:
                 accounts.append({
                     'id': account_id,
                     'name': account_data['name'],
                     'category': categories.get(account_data.get('category_id', ''), 'Okänd'),
                     'category_id': account_data.get('category_id', '')
                 })
+                st.write(f"✅ MATCH: Lade till konto `{account_data['name']}`")
         
+        st.write(f"🔍 DEBUG: Returnerar {len(accounts)} matchande konton")
         return accounts
         
     except Exception as e:
@@ -523,8 +530,13 @@ def show_excel_import_test():
             except:
                 import_year = 2025
             
+            # Debug: visa company_id
+            st.write(f"🔍 DEBUG: Söker konton för company_id: `{selected_company_id}`")
+            
             # Visa konton för valt företag
             accounts = load_test_accounts(selected_company_id)
+            st.write(f"🔍 DEBUG: Hittade {len(accounts)} konton")
+            
             if accounts:
                 st.markdown(f"#### 📋 Konton för {selected_company_name} (År: {import_year})")
                 
