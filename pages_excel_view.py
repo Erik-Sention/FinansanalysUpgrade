@@ -29,15 +29,22 @@ def get_financial_data_with_categories(company_id, year):
         values_data = values_ref.get(firebase_db._get_token())
         all_values = values_data.val() if values_data and values_data.val() else {}
         
+        # Konvertera company_id från string till rätt format
+        # company_id kommer som "KLAB" men i test_data är det "company_1" 
+        company_mapping = {"KLAB": "company_1", "KSAB": "company_2"}
+        firebase_company_id = company_mapping.get(company_id, company_id)
+        
+        print(f"🔍 Söker efter company_id={company_id} -> firebase_company_id={firebase_company_id}")
+        
         # Filtrera värden för rätt företag och år
         values = {}
         for value_id, value_data in all_values.items():
-            if (value_data.get('company_id') == company_id and 
+            if (value_data.get('company_id') == firebase_company_id and 
                 value_data.get('year') == year and
                 value_data.get('type') == 'actual'):  # TEST_DATA använder 'type' istället för 'value_type'
                 values[value_id] = value_data
         
-        print(f"🔍 Hittade {len(values)} värden för company_id={company_id}, year={year}")
+        print(f"🔍 Hittade {len(values)} värden för company_id={company_id} (firebase: {firebase_company_id}), year={year}")
         
         # Hämta referensdata från test_data (samma som budget-sidan)
         accounts_ref = firebase_db.get_ref("test_data/accounts")
