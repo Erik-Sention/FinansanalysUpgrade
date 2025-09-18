@@ -6,7 +6,11 @@ import pandas as pd
 import time
 from datetime import datetime
 from src.models.database import get_companies, get_financial_data_with_categories, get_budget_data, get_all_categories, update_account_category
-from src.models.firebase_database import get_firebase_db
+# Import from root level pyrebase version instead of complex firebase_admin version
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from models_firebase_database import get_firebase_db
 from typing import Dict, Any
 
 # Import original functions

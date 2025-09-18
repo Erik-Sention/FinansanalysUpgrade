@@ -1,5 +1,5 @@
 """
-Enkel Streamlit app som ENDAST använder Pyrebase (ingen firebase_admin)
+Huvudapplikation för finansiell analys i Streamlit
 """
 import streamlit as st
 import sys
@@ -9,7 +9,7 @@ from pathlib import Path
 # Konfigurera sidan
 st.set_page_config(
     page_title="Finansiell Analys",
-    page_icon="📊", 
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -24,14 +24,15 @@ except ImportError:
         pkg_resources.get_distribution = lambda name: type('Distribution', (), {'version': '1.0.0'})()
     sys.modules['pkg_resources'] = pkg_resources
 
-# Importera moduler från root-nivån (endast de som INTE använder firebase_admin)
+# Importera moduler från root-nivån
 try:
     import pages_auth as auth
+    import pages_excel_view as excel_view  
     import pages_visualization as visualization
     from utils_auth import require_authentication, show_user_info, get_auth
     
-    # Importera ENDAST från fungerende Excel-sidor
-    import pages_excel_view as excel_view  # Root-level version som använder pyrebase
+    # Import optimerad Excel-vy
+    from src.pages.excel_view_optimized import show_optimized
     
 except ImportError as e:
     st.error(f"Import fel: {e}")
@@ -50,11 +51,11 @@ if firebase_auth.is_authenticated():
     show_user_info()
     st.sidebar.markdown("---")
     
-    # Navigation för inloggade användare (endast fungerende sidor)
+    # Navigation för inloggade användare
     page = st.sidebar.selectbox(
         "Välj sida",
-        ["💾 Finansdatabas (Pyrebase)", "📈 Visualisering"],
-        index=0
+        ["💾 Finansdatabas", "💾 Finansdatabas (Optimerad)", "📈 Visualisering"],
+        index=1  # Börja med optimerad version
     )
     
     st.sidebar.markdown("---")
@@ -63,8 +64,10 @@ if firebase_auth.is_authenticated():
     require_authentication()
     
     # Visa vald sida
-    if page == "💾 Finansdatabas (Pyrebase)":
+    if page == "💾 Finansdatabas":
         excel_view.show()
+    elif page == "💾 Finansdatabas (Optimerad)":
+        show_optimized()
     elif page == "📈 Visualisering":
         visualization.show()
         
@@ -83,9 +86,9 @@ st.sidebar.markdown("---")
 st.sidebar.markdown(
     """
     <small>
-    **Finansiell Analys v2.0 (Pyrebase)**<br>
+    **Finansiell Analys v2.0**<br>
     Data från Firebase Realtime Database<br>
-    Byggt med Streamlit + Pyrebase
+    Byggt med Streamlit
     </small>
     """, 
     unsafe_allow_html=True
