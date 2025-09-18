@@ -225,22 +225,32 @@ class FirebaseDB:
             
             print(f"🔥 EXISTING VALUES COUNT: {len(existing_values) if existing_values else 0}")
             
-            # Sök efter befintligt värde
-            found_existing = False
+            # Hitta nyckel för ev. befintlig post
+            found_key = None
             if existing_values:
                 for key, value in existing_values.items():
                     if (value and isinstance(value, dict) and
                         value.get("budget_id") == budget_id and 
                         value.get("account_id") == account_id and 
                         value.get("month") == month):
-                        # Uppdatera befintligt värde
-                        budget_values_ref.child(key).update(value_data, self._get_token())
-                        print(f"🔥 UPPDATERADE BEFINTLIGT: key={key}")
-                        found_existing = True
-                        return key
-            
-            if not found_existing:
-                # Skapa nytt värde
+                        found_key = key
+                        break
+
+            # Policy: spara aldrig 0-värden. Om amount==0 -> ta bort posten om den finns, annars gör inget.
+            if abs(amount) <= 1e-9:
+                if found_key:
+                    budget_values_ref.child(found_key).remove(self._get_token())
+                    print(f"🗑️ TOG BORT POST (amount=0): key={found_key}")
+                    return found_key
+                print("↩️ SKIP (amount=0 och ingen post)")
+                return "skipped"
+
+            # Annars: skapa eller uppdatera
+            if found_key:
+                budget_values_ref.child(found_key).update(value_data, self._get_token())
+                print(f"🔥 UPPDATERADE BEFINTLIGT: key={found_key}")
+                return found_key
+            else:
                 new_value_ref = budget_values_ref.push(value_data, self._get_token())
                 new_key = new_value_ref['name']
                 print(f"🔥 SKAPADE NYTT: key={new_key}")

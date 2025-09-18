@@ -524,7 +524,8 @@ def show():
                 for m in month_labels:
                     b = float(row.get(f"{m}_orig", 0.0) if pd.notna(row.get(f"{m}_orig", 0.0)) else 0.0)
                     e = float(row.get(f"{m}_edit", 0.0) if pd.notna(row.get(f"{m}_edit", 0.0)) else 0.0)
-                    if abs(e - b) > 1e-9:
+                    # Endast icke-noll ändringar ska sparas
+                    if abs(e - b) > 1e-9 and abs(e) > 1e-9:
                         updates.setdefault(account_id, {})[month_to_num[m]] = e
             return updates
 
