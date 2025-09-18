@@ -504,28 +504,28 @@ def show():
 
         def diff_budget_updates(original_df: pd.DataFrame, edited_df: pd.DataFrame) -> dict:
             """Returnera endast ändrade celler som updates {account_id: {month: amount}}"""
-            month_map = {'Jan':1,'Feb':2,'Mar':3,'Apr':4,'Maj':5,'Jun':6,
-                         'Jul':7,'Aug':8,'Sep':9,'Okt':10,'Nov':11,'Dec':12}
-            # Säkerställ samma sorteringsordning och indexering via account_id
-            orig = original_df.set_index('account_id')
-            edit = edited_df.set_index('account_id')
+            month_labels = ['Jan','Feb','Mar','Apr','Maj','Jun','Jul','Aug','Sep','Okt','Nov','Dec']
+            month_to_num = {m:i+1 for i,m in enumerate(month_labels)}
+
+            # Hämta endast de kolumner vi bryr oss om och aligna rader på account_id
+            orig = original_df[['account_id'] + month_labels].copy()
+            edit = edited_df[['account_id'] + month_labels].copy()
+
+            # Konvertera till float och fyll NaN med 0.0
+            for df in (orig, edit):
+                for col in month_labels:
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+
+            merged = orig.merge(edit, on='account_id', how='outer', suffixes=('_orig', '_edit'))
+
             updates: dict[str, dict[int, float]] = {}
-            # Jämför per konto och månadskolumn
-            for account_id in edit.index:
-                if account_id not in orig.index:
-                    # Helt ny rad -> skicka alla icke-NaN värden
-                    for col, val in edit.loc[account_id].items():
-                        if col in month_map and pd.notna(val):
-                            updates.setdefault(account_id, {})[month_map[col]] = float(val)
-                    continue
-                for col, edited_val in edit.loc[account_id].items():
-                    if col not in month_map:
-                        continue
-                    base_val = orig.loc[account_id].get(col, 0.0)
-                    e = float(edited_val) if pd.notna(edited_val) else 0.0
-                    b = float(base_val) if pd.notna(base_val) else 0.0
+            for _, row in merged.iterrows():
+                account_id = row['account_id']
+                for m in month_labels:
+                    b = float(row.get(f"{m}_orig", 0.0) if pd.notna(row.get(f"{m}_orig", 0.0)) else 0.0)
+                    e = float(row.get(f"{m}_edit", 0.0) if pd.notna(row.get(f"{m}_edit", 0.0)) else 0.0)
                     if abs(e - b) > 1e-9:
-                        updates.setdefault(account_id, {})[month_map[col]] = e
+                        updates.setdefault(account_id, {})[month_to_num[m]] = e
             return updates
 
         for i, category in enumerate(categories):
