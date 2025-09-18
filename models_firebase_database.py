@@ -36,6 +36,21 @@ class FirebaseDB:
     def __init__(self):
         self._initialize_firebase()
         
+    def _get_token(self):
+        """Hämta idToken för autentiserad användare (krävs av reglerna)."""
+        try:
+            # Preferera explicit sparad token
+            token = st.session_state.get('user_token')
+            if token:
+                return token
+            # Fallback: token i user-objektet
+            user = st.session_state.get('user')
+            if isinstance(user, dict):
+                return user.get('idToken')
+        except Exception:
+            pass
+        return None
+        
     def _initialize_firebase(self):
         """Initiera Firebase anslutning med Pyrebase"""
         # Pyrebase konfiguration - behöver bara dessa 6 värden!
@@ -71,7 +86,7 @@ class FirebaseDB:
         """Hämta alla företag"""
         try:
             companies_ref = self.get_ref("companies")
-            data = companies_ref.get()
+            data = companies_ref.get(self._get_token())
             return data.val() if data.val() else {}
         except Exception as e:
             print(f"Error getting companies: {e}")
@@ -81,7 +96,7 @@ class FirebaseDB:
         """Hämta datasets, eventuellt filtrerade på företag"""
         try:
             datasets_ref = self.get_ref("datasets")
-            data = datasets_ref.get()
+            data = datasets_ref.get(self._get_token())
             datasets = data.val() if data.val() else {}
             
             if company_id:
@@ -96,7 +111,7 @@ class FirebaseDB:
         """Hämta alla kontokategorier"""
         try:
             categories_ref = self.get_ref("account_categories")
-            data = categories_ref.get()
+            data = categories_ref.get(self._get_token())
             return data.val() if data.val() else {}
         except Exception as e:
             print(f"Error getting account categories: {e}")
@@ -106,7 +121,7 @@ class FirebaseDB:
         """Hämta konton, eventuellt filtrerade på kategori"""
         try:
             accounts_ref = self.get_ref("accounts")
-            data = accounts_ref.get()
+            data = accounts_ref.get(self._get_token())
             accounts = data.val() if data.val() else {}
             
             if category_id:
@@ -121,7 +136,7 @@ class FirebaseDB:
         """Hämta värden med valfri filtrering"""
         try:
             values_ref = self.get_ref("values")
-            data = values_ref.get()
+            data = values_ref.get(self._get_token())
             values = data.val() if data.val() else {}
             
             if dataset_id:
@@ -139,7 +154,7 @@ class FirebaseDB:
         """Hämta budgetar"""
         try:
             budgets_ref = self.get_ref("budgets")
-            data = budgets_ref.get()
+            data = budgets_ref.get(self._get_token())
             budgets = data.val() if data.val() else {}
             
             if company_id:
@@ -154,7 +169,7 @@ class FirebaseDB:
         """Hämta budgetvärden"""
         try:
             budget_values_ref = self.get_ref("budget_values")
-            data = budget_values_ref.get()
+            data = budget_values_ref.get(self._get_token())
             values = data.val() if data.val() else {}
             
             if budget_id:
@@ -177,7 +192,7 @@ class FirebaseDB:
             }
             
             budgets_ref = self.get_ref("budgets")
-            new_budget_ref = budgets_ref.push(budget_data)
+            new_budget_ref = budgets_ref.push(budget_data, self._get_token())
             return new_budget_ref['name']  # Pyrebase returnerar {'name': 'key'}
         except Exception as e:
             print(f"Error creating budget: {e}")
@@ -198,7 +213,7 @@ class FirebaseDB:
             
             # Hitta befintligt värde eller skapa nytt
             budget_values_ref = self.get_ref("budget_values")
-            existing_data = budget_values_ref.get()
+            existing_data = budget_values_ref.get(self._get_token())
             
             # Säker hantering av Pyrebase response
             existing_values = {}
@@ -219,14 +234,14 @@ class FirebaseDB:
                         value.get("account_id") == account_id and 
                         value.get("month") == month):
                         # Uppdatera befintligt värde
-                        budget_values_ref.child(key).update(value_data)
+                        budget_values_ref.child(key).update(value_data, self._get_token())
                         print(f"🔥 UPPDATERADE BEFINTLIGT: key={key}")
                         found_existing = True
                         return key
             
             if not found_existing:
                 # Skapa nytt värde
-                new_value_ref = budget_values_ref.push(value_data)
+                new_value_ref = budget_values_ref.push(value_data, self._get_token())
                 new_key = new_value_ref['name']
                 print(f"🔥 SKAPADE NYTT: key={new_key}")
                 return new_key
