@@ -46,20 +46,24 @@ def load_accounts_for_company(company_id: str):
         accounts_ref = firebase_db.get_ref("test_data/accounts")
         accounts_data = accounts_ref.get(firebase_db._get_token())
         
-        # Hämta kategorier för att kunna matcha kategori-ID till namn
-        categories = firebase_db.get_account_categories()
+        # Hämta kategorier från test_data (samma som importen använder)
+        categories_ref = firebase_db.get_ref("test_data/categories")
+        categories_data = categories_ref.get(firebase_db._get_token())
+        categories = categories_data.val() if categories_data and categories_data.val() else {}
         
         accounts = []
         if accounts_data and accounts_data.val():
             for account_id, account_info in accounts_data.val().items():
                 if account_info.get('company_id') == company_id:
-                    # Hämta kategorinamn baserat på category_id
+                    # Hämta kategorinamn baserat på category_id från test_data
                     category_id = account_info.get('category_id')
                     category_name = "Okänd"
                     if category_id and categories:
                         category_data = categories.get(category_id)
                         if category_data:
                             category_name = category_data.get('name', 'Okänd')
+                    
+                    print(f"🔍 Debug: Konto '{account_info['name']}' har category_id='{category_id}', kategori='{category_name}'")
                     
                     accounts.append({
                         'id': account_id,
