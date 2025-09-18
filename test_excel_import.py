@@ -8,39 +8,117 @@ from models_firebase_database import get_firebase_db
 from datetime import datetime
 import io
 
-def load_excel_data(excel_file_path: str = "Finansiell Data.xlsx"):
+def load_excel_data_correct(excel_file_path: str = "Finansiell Data.xlsx"):
     """
-    Läs riktiga Excel-data från filen
+    Läs Excel-data RÄTT - från specifika sheets för bara 2 företag
     """
     try:
-        # Läs Excel-filen - testa olika sheets
+        # Läs Excel-filen och lista alla sheets
         excel_file = pd.ExcelFile(excel_file_path)
+        all_sheets = excel_file.sheet_names
         
-        st.info(f"📋 Hittade sheets: {excel_file.sheet_names}")
+        st.info(f"📋 Hittade {len(all_sheets)} sheets: {all_sheets}")
         
-        # Läs första sheetet som default
-        df = pd.read_excel(excel_file_path, sheet_name=0)
+        # Välj bara första 2 företag (KLAB och KSAB) och senaste året för varje
+        target_companies = ['KLAB', 'KSAB']  # Bara första 2 företag
+        selected_sheets = []
         
-        st.success(f"✅ Laddade {len(df)} rader från Excel")
-        st.write("**Kolumner i Excel:**", list(df.columns))
-        st.write("**Första 5 raderna:**")
-        st.dataframe(df.head(), use_container_width=True)
+        for company in target_companies:
+            # Hitta senaste året för detta företag
+            company_sheets = [s for s in all_sheets if s.startswith(f"{company} ")]
+            if company_sheets:
+                # Sortera och ta senaste året
+                latest_sheet = sorted(company_sheets)[-1]
+                selected_sheets.append(latest_sheet)
         
-        return df
+        st.warning(f"🎯 VÄLJER BARA: {selected_sheets}")
+        
+        # Kombinera data från valda sheets
+        combined_data = []
+        
+        for sheet_name in selected_sheets:
+            st.info(f"📖 Läser sheet: {sheet_name}")
+            
+            # Parsa företag och år från sheet-namn
+            parts = sheet_name.split(' ')
+            company_name = parts[0]
+            year = int(parts[1])
+            
+            # Läs sheet utan headers
+            df = pd.read_excel(excel_file_path, sheet_name=sheet_name, header=None)
+            
+            # Hitta månadskolumner (denna logik från original ETL)
+            months_found = []
+            month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec']
+            
+            for idx, row in df.iterrows():
+                row_months = []
+                for col_idx, cell in enumerate(row):
+                    if pd.notna(cell) and str(cell).strip() in month_names:
+                        row_months.append((col_idx, str(cell).strip()))
+                
+                if len(row_months) >= 3:  # Minst 3 månader
+                    months_found = sorted(row_months)
+                    data_start_row = idx + 1
+                    break
+            
+            if not months_found:
+                st.warning(f"⚠️ Kunde inte hitta månader i {sheet_name}")
+                continue
+            
+            st.success(f"✅ Hittade månader: {[m[1] for m in months_found]}")
+            
+            # Extrahera konton och data
+            for row_idx in range(data_start_row, len(df)):
+                row = df.iloc[row_idx]
+                account_name = str(row.iloc[0]).strip() if pd.notna(row.iloc[0]) else ""
+                
+                # Skippa tomma rader och summor
+                if (not account_name or 
+                    account_name in ['', 'Tot', 'Total'] or
+                    'SUMMA' in account_name.upper()):
+                    continue
+                
+                # Skapa rad för kombinerad data
+                data_row = {
+                    'Företag': company_name,
+                    'År': year,
+                    'Konto': account_name,
+                    'Kategori': 'Intäkter' if 'intäkt' in account_name.lower() or 'försäljning' in account_name.lower() else 'Kostnader'
+                }
+                
+                # Lägg till månadsdata
+                for col_idx, month_name in months_found:
+                    if col_idx < len(row):
+                        value = row.iloc[col_idx]
+                        if pd.notna(value) and value != 0:
+                            try:
+                                # Hantera svenska decimalformat
+                                if isinstance(value, str):
+                                    value = value.replace(',', '.')
+                                data_row[month_name] = float(value)
+                            except:
+                                data_row[month_name] = 0
+                        else:
+                            data_row[month_name] = 0
+                
+                combined_data.append(data_row)
+        
+        if combined_data:
+            result_df = pd.DataFrame(combined_data)
+            st.success(f"✅ Kombinerade data: {len(result_df)} rader från {len(selected_sheets)} sheets")
+            st.write("**Kombinerad data:**")
+            st.dataframe(result_df.head(10), use_container_width=True)
+            return result_df
+        else:
+            st.error("❌ Ingen data extraherad från Excel")
+            return None
         
     except Exception as e:
         st.error(f"❌ Fel vid läsning av Excel: {e}")
-        st.warning("Skapar sample-data istället...")
-        
-        # Fallback till sample-data
-        data = {
-            'Företag': ['KLAB', 'KLAB', 'KSAB', 'KSAB'],
-            'Konto': ['Försäljning', 'Kostnader', 'Försäljning', 'Kostnader'],
-            'Kategori': ['Intäkter', 'Kostnader', 'Intäkter', 'Kostnader'],
-            'Jan': [850000, -180000, 920000, -210000],
-            'Feb': [780000, -180000, 850000, -210000]
-        }
-        return pd.DataFrame(data)
+        import traceback
+        st.error(traceback.format_exc())
+        return None
 
 def save_test_data_to_firebase(df: pd.DataFrame) -> bool:
     """
@@ -387,7 +465,7 @@ def show_excel_import_test():
     
     with col1:
         if st.button("📤 Läs och importera Excel-data", type="primary"):
-            excel_df = load_excel_data()
+            excel_df = load_excel_data_correct()
             
             if excel_df is not None and not excel_df.empty:
                 with st.spinner("Importerar Excel-data till Firebase..."):
@@ -409,7 +487,7 @@ def show_excel_import_test():
     
     with col3:
         if st.button("📋 Förhandsgranska Excel"):
-            excel_df = load_excel_data()
+            excel_df = load_excel_data_correct()
             if excel_df is not None and not excel_df.empty:
                 st.success("✅ Excel-data laddad för förhandsgranskning")
             else:
