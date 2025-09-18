@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from src.models.firebase_database import get_firebase_db
+from utils_firebase_helpers import get_firebase_db
 
 def load_budget_values(company_id: str, year: int = 2025):
     """Ladda budget-värden från BUDGET_DATABASE"""
