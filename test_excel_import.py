@@ -426,12 +426,116 @@ def load_test_values(company_id: str, year: int = 2025):
         st.error(f"❌ Fel vid laddning av värden: {e}")
         return {}
 
+def load_budget_values(company_id: str, year: int = 2025):
+    """Ladda budget-värden för ett företag och år"""
+    try:
+        firebase_db = get_firebase_db()
+        budget_ref = firebase_db.get_ref("test_budget_data/values")
+        data = budget_ref.get(firebase_db._get_token())
+        
+        if not (data and data.val()):
+            return {}
+        
+        # Filtrera budget-värden för företag och år
+        budget_values = {}
+        for value_id, value_data in data.val().items():
+            if (value_data.get('company_id') == company_id and 
+                value_data.get('year') == year):
+                
+                account_id = value_data.get('account_id')
+                month = value_data.get('month')
+                amount = value_data.get('amount', 0)
+                
+                if account_id not in budget_values:
+                    budget_values[account_id] = {}
+                budget_values[account_id][month] = amount
+        
+        return budget_values
+        
+    except Exception as e:
+        st.error(f"❌ Fel vid laddning av budget: {e}")
+        return {}
+
+def save_budget_changes(company_id: str, year: int, edited_df: pd.DataFrame, original_df: pd.DataFrame):
+    """Spara budget-ändringar till Firebase"""
+    try:
+        firebase_db = get_firebase_db()
+        budget_ref = firebase_db.get_ref("test_budget_data")
+        
+        # Skapa metadata om det inte finns
+        try:
+            meta_ref = firebase_db.get_ref("test_budget_data/meta")
+            meta_data = meta_ref.get(firebase_db._get_token())
+            if not (meta_data and meta_data.val()):
+                meta_ref.set({
+                    'created_at': datetime.now().isoformat(),
+                    'year': year,
+                    'description': 'Test budget data'
+                }, firebase_db._get_token())
+        except:
+            pass
+        
+        # Identifiera ändringar
+        month_cols = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec']
+        changes_made = False
+        
+        for idx, (edited_row, original_row) in enumerate(zip(edited_df.itertuples(), original_df.itertuples())):
+            account_id = edited_row.account_id
+            
+            for month_idx, month_name in enumerate(month_cols, 1):
+                old_value = getattr(original_row, month_name, 0)
+                new_value = getattr(edited_row, month_name, 0)
+                
+                # Om värdet har ändrats
+                if old_value != new_value:
+                    changes_made = True
+                    
+                    # Hitta eller skapa budget-post
+                    values_ref = firebase_db.get_ref("test_budget_data/values")
+                    existing_data = values_ref.get(firebase_db._get_token())
+                    
+                    budget_id = None
+                    if existing_data and existing_data.val():
+                        for bid, bdata in existing_data.val().items():
+                            if (bdata.get('company_id') == company_id and 
+                                bdata.get('year') == year and
+                                bdata.get('account_id') == account_id and
+                                bdata.get('month') == month_idx):
+                                budget_id = bid
+                                break
+                    
+                    # Skapa ny post om ingen finns
+                    if not budget_id:
+                        budget_id = f"budget_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{month_idx}_{account_id}"
+                    
+                    # Spara värdet
+                    budget_value_ref = firebase_db.get_ref(f"test_budget_data/values/{budget_id}")
+                    budget_value_ref.set({
+                        'company_id': company_id,
+                        'year': year,
+                        'account_id': account_id,
+                        'month': month_idx,
+                        'amount': float(new_value) if new_value else 0.0,
+                        'updated_at': datetime.now().isoformat()
+                    }, firebase_db._get_token())
+        
+        return changes_made
+        
+    except Exception as e:
+        st.error(f"❌ Fel vid sparande av budget: {e}")
+        return False
+
 def clear_test_data():
     """Rensa all test-data från Firebase"""
     try:
         firebase_db = get_firebase_db()
         test_ref = firebase_db.get_ref("test_data")
         test_ref.remove(firebase_db._get_token())
+        
+        # Rensa även budget-data
+        budget_ref = firebase_db.get_ref("test_budget_data")
+        budget_ref.remove(firebase_db._get_token())
+        
         return True
     except Exception as e:
         st.error(f"❌ Fel vid rensning: {e}")
@@ -593,6 +697,83 @@ def show_excel_import_test():
                         st.write(f"🎯 Söker efter: company_id='{selected_company_id}', year={import_year}")
                 except Exception as e:
                     st.error(f"Debug fel: {e}")
+            
+            # BUDGET-SEKTION
+            st.markdown("---")
+            st.markdown("### 💰 Budget för företaget")
+            
+            if values:  # Om vi har data att basera budget på
+                # Hämta befintlig budget eller skapa tom
+                budget_values = load_budget_values(selected_company_id, import_year)
+                
+                # Skapa budget-tabell baserad på befintliga konton
+                budget_data = []
+                for account_id, month_values in values.items():
+                    account_name = account_names.get(account_id, account_id)
+                    
+                    # Bestäm kategori baserat på kontonamn
+                    account_lower = account_name.lower()
+                    if any(word in account_lower for word in ['försäljning', 'intäkt', 'revenue', 'upplupen', 'gruppträning', 'cykel', 'resor', 'autogenererade']):
+                        category = "Intäkter"
+                    else:
+                        category = "Kostnader"
+                    
+                    budget_row = {
+                        'Konto': account_name,
+                        'Kategori': category,
+                        'account_id': account_id  # Gömd kolumn för sparande
+                    }
+                    
+                    # Lägg till budget-värden per månad
+                    for month in range(1, 13):
+                        month_name = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun',
+                                    'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'][month-1]
+                        budget_row[month_name] = budget_values.get(account_id, {}).get(month, 0.0)
+                    
+                    budget_data.append(budget_row)
+                
+                if budget_data:
+                    st.info("💡 Redigera budget-värden nedan. Ändringar sparas automatiskt!")
+                    
+                    # Skapa redigerbar DataFrame
+                    budget_df = pd.DataFrame(budget_data)
+                    
+                    # Redigerbar dataframe
+                    edited_budget = st.data_editor(
+                        budget_df,
+                        column_config={
+                            'account_id': None,  # Göm denna kolumn
+                            'Konto': st.column_config.TextColumn('Konto', disabled=True),
+                            'Kategori': st.column_config.TextColumn('Kategori', disabled=True),
+                            'Jan': st.column_config.NumberColumn('Jan', format="%.0f"),
+                            'Feb': st.column_config.NumberColumn('Feb', format="%.0f"),
+                            'Mar': st.column_config.NumberColumn('Mar', format="%.0f"),
+                            'Apr': st.column_config.NumberColumn('Apr', format="%.0f"),
+                            'Maj': st.column_config.NumberColumn('Maj', format="%.0f"),
+                            'Jun': st.column_config.NumberColumn('Jun', format="%.0f"),
+                            'Jul': st.column_config.NumberColumn('Jul', format="%.0f"),
+                            'Aug': st.column_config.NumberColumn('Aug', format="%.0f"),
+                            'Sep': st.column_config.NumberColumn('Sep', format="%.0f"),
+                            'Okt': st.column_config.NumberColumn('Okt', format="%.0f"),
+                            'Nov': st.column_config.NumberColumn('Nov', format="%.0f"),
+                            'Dec': st.column_config.NumberColumn('Dec', format="%.0f")
+                        },
+                        use_container_width=True,
+                        height=400,
+                        key=f"budget_editor_{selected_company_id}_{import_year}"
+                    )
+                    
+                    # Spara ändringar automatiskt
+                    if not edited_budget.equals(budget_df):
+                        if save_budget_changes(selected_company_id, import_year, edited_budget, budget_df):
+                            st.success("✅ Budget sparad!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Fel vid sparande av budget")
+                            
+            else:
+                st.info("📝 Importera Excel-data först för att skapa budget")
+                
     else:
         st.info("📭 Ingen test-data importerad ännu")
 
