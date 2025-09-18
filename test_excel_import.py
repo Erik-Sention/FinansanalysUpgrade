@@ -396,7 +396,7 @@ def load_test_accounts(company_id: str):
         st.error(f"❌ Fel vid laddning av konton: {e}")
         return []
 
-def load_test_values(company_id: str, year: int = 2024):
+def load_test_values(company_id: str, year: int = 2025):
     """Ladda test-värden för ett företag och år"""
     try:
         firebase_db = get_firebase_db()
@@ -514,14 +514,23 @@ def show_excel_import_test():
             )
             selected_company_id = company_options[selected_company_name]
             
+            # Hämta år från metadata
+            try:
+                firebase_db = get_firebase_db()
+                meta_ref = firebase_db.get_ref("test_data/meta")
+                meta_data = meta_ref.get(firebase_db._get_token())
+                import_year = meta_data.val().get('year', 2025) if meta_data and meta_data.val() else 2025
+            except:
+                import_year = 2025
+            
             # Visa konton för valt företag
             accounts = load_test_accounts(selected_company_id)
             if accounts:
-                st.markdown(f"#### 📋 Konton för {selected_company_name}")
+                st.markdown(f"#### 📋 Konton för {selected_company_name} (År: {import_year})")
                 
                 # Skapa översikt-tabell
                 overview_data = []
-                values = load_test_values(selected_company_id, 2024)
+                values = load_test_values(selected_company_id, import_year)
                 
                 for account in accounts:
                     account_id = account['id']
