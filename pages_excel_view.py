@@ -552,7 +552,19 @@ def show():
                     key=f"grid_{category}"
                 )
 
-                if st.button(f"💾 Spara budget – {category}", type="primary", key=f"save_{category}"):
+                cols = st.columns([1,1,3])
+                with cols[0]:
+                    save_clicked = st.button(f"💾 Spara budget – {category}", type="primary", key=f"save_{category}")
+                with cols[1]:
+                    reset_clicked = st.button("🧹 Rensa detta år", key=f"reset_{category}")
+
+                if reset_clicked:
+                    firebase_db = get_firebase_db()
+                    removed = firebase_db.reset_budget_for_company_year(selected_company_id, selected_year)
+                    st.success(f"🧹 Rensade {removed} budgetvärden för {selected_year}.")
+                    st.rerun()
+
+                if save_clicked:
                     # Spara endast ändrade celler
                     updates = diff_budget_updates(grid_df, edited_df)
                     if not updates:

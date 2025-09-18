@@ -262,6 +262,59 @@ class FirebaseDB:
             print(f"Debug - existing_data: {existing_data if 'existing_data' in locals() else 'Not set'}")
             raise
 
+    # -------- Rensning av budgetdata --------
+    def delete_budget_values_for_budget(self, budget_id: str) -> int:
+        """Ta bort alla budget_values som hör till ett budget_id. Returnerar antal borttagna."""
+        try:
+            ref = self.get_ref("budget_values")
+            snap = ref.get(self._get_token())
+            removed = 0
+            if snap and snap.val():
+                for key, val in snap.val().items():
+                    if isinstance(val, dict) and val.get("budget_id") == budget_id:
+                        ref.child(key).remove(self._get_token())
+                        removed += 1
+            return removed
+        except Exception as e:
+            print(f"Error deleting budget values for budget {budget_id}: {e}")
+            return 0
+
+    def delete_budget(self, budget_id: str) -> None:
+        """Ta bort en budget-nod."""
+        try:
+            self.get_ref("budgets").child(budget_id).remove(self._get_token())
+        except Exception as e:
+            print(f"Error deleting budget {budget_id}: {e}")
+
+    def reset_budget_for_company_year(self, company_id: str, year: int) -> int:
+        """Ta bort alla budgetar och deras värden för visst företag och år. Returnerar antal rader i budget_values som togs bort."""
+        budgets = self.get_budgets(company_id)
+        total_removed = 0
+        for bid, b in (budgets or {}).items():
+            if b and b.get("year") == year:
+                total_removed += self.delete_budget_values_for_budget(bid)
+                self.delete_budget(bid)
+        return total_removed
+
+    def nuke_all_budget_data(self) -> int:
+        """Ta bort ALLA budgetar och budget_values i databasen. Returnerar antal borttagna budget_values."""
+        removed = 0
+        try:
+            # Ta bort alla budget_values
+            vals = self.get_ref("budget_values").get(self._get_token())
+            if vals and vals.val():
+                for key in list(vals.val().keys()):
+                    self.get_ref("budget_values").child(key).remove(self._get_token())
+                    removed += 1
+            # Ta bort alla budgets
+            buds = self.get_ref("budgets").get(self._get_token())
+            if buds and buds.val():
+                for key in list(buds.val().keys()):
+                    self.get_ref("budgets").child(key).remove(self._get_token())
+        except Exception as e:
+            print(f"Error nuking all budget data: {e}")
+        return removed
+
 # Global instans
 def get_firebase_db():
     """Hämta Firebase databas instans"""
