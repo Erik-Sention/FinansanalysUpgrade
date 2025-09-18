@@ -133,29 +133,44 @@ def find_excel_sections(df: pd.DataFrame) -> dict:
     expense_end = None
     
     for idx in range(len(df)):
-        # Kolla första kolumnen för sektionsrubriker
+        # Kolla första kolumnen för sektionsrubriker (behåll original för visning)
         cell_value = ""
+        cell_value_lower = ""
         if len(df.columns) > 0 and idx < len(df):
             try:
-                cell_value = str(df.iloc[idx, 0]).strip().upper() if pd.notna(df.iloc[idx, 0]) else ''
+                original_value = str(df.iloc[idx, 0]).strip() if pd.notna(df.iloc[idx, 0]) else ''
+                cell_value = original_value  # För visning i print
+                cell_value_lower = original_value.lower()  # För jämförelse
             except:
                 continue
         
-        # Leta efter intäkter sektion
-        if 'RÖRELSENS INTÄKTER' in cell_value and 'SUMMA' not in cell_value and revenue_start is None:
+        # Leta efter intäkter sektion (case-insensitive med variationer)
+        revenue_patterns = ['rörelsens intäkter', 'rörelseintäkter', 'intäkter']
+        revenue_sum_patterns = ['summa rörelsens intäkter', 'summa rörelseintäkter', 'summa intäkter']
+        
+        if (any(pattern in cell_value_lower for pattern in revenue_patterns) and 
+            not any(sum_pattern in cell_value_lower for sum_pattern in revenue_sum_patterns) and 
+            revenue_start is None):
             revenue_start = idx
-            print(f"🔍 Hittade RÖRELSENS INTÄKTER på rad {idx}")
-        elif 'SUMMA RÖRELSENS INTÄKTER' in cell_value and revenue_start is not None:
+            print(f"🔍 Hittade INTÄKTER-sektion på rad {idx}: '{cell_value}'")
+        elif (any(sum_pattern in cell_value_lower for sum_pattern in revenue_sum_patterns) and 
+              revenue_start is not None):
             revenue_end = idx
-            print(f"🔍 Hittade SUMMA RÖRELSENS INTÄKTER på rad {idx}")
+            print(f"🔍 Hittade SUMMA INTÄKTER på rad {idx}: '{cell_value}'")
             
-        # Leta efter kostnader sektion
-        elif 'RÖRELSENS KOSTNADER' in cell_value and 'SUMMA' not in cell_value and expense_start is None:
+        # Leta efter kostnader sektion (case-insensitive med variationer)
+        expense_patterns = ['rörelsens kostnader', 'rörelsekostnader', 'kostnader']
+        expense_sum_patterns = ['summa rörelsens kostnader', 'summa rörelsekostnader', 'summa kostnader']
+        
+        elif (any(pattern in cell_value_lower for pattern in expense_patterns) and 
+              not any(sum_pattern in cell_value_lower for sum_pattern in expense_sum_patterns) and 
+              expense_start is None):
             expense_start = idx
-            print(f"🔍 Hittade RÖRELSENS KOSTNADER på rad {idx}")
-        elif 'SUMMA RÖRELSENS KOSTNADER' in cell_value and expense_start is not None:
+            print(f"🔍 Hittade KOSTNADER-sektion på rad {idx}: '{cell_value}'")
+        elif (any(sum_pattern in cell_value_lower for sum_pattern in expense_sum_patterns) and 
+              expense_start is not None):
             expense_end = idx
-            print(f"🔍 Hittade SUMMA RÖRELSENS KOSTNADER på rad {idx}")
+            print(f"🔍 Hittade SUMMA KOSTNADER på rad {idx}: '{cell_value}'")
     
     # Sätt sektioner om vi hittade start och slut
     if revenue_start is not None and revenue_end is not None:
