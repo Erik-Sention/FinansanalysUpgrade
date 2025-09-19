@@ -567,8 +567,8 @@ def load_test_data_with_categories(company_id: str, year: int = 2025):
             if month not in df_pivot.columns:
                 df_pivot[month] = 0
         
-        # Ordna kolumner (ta bort Företag-kolumnen)
-        final_columns = ['År', 'Konto', 'Kategori'] + months_order
+        # Ordna kolumner (ta bort Företag och År-kolumnerna)
+        final_columns = ['Konto', 'Kategori'] + months_order
         df_pivot = df_pivot[final_columns]
         
         return df_pivot
