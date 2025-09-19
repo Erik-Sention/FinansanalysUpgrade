@@ -447,8 +447,21 @@ def load_test_companies():
     """Ladda test-företag från Firebase"""
     try:
         firebase_db = get_firebase_db()
-        test_ref = firebase_db.get_ref("test_data/companies")
-        data = test_ref.get(firebase_db._get_token())
+        
+        # Debug: Kontrollera Firebase-anslutning
+        st.write("🔍 Debug: Kontrollerar Firebase-anslutning...")
+        
+        # Försök hämta test_data root först
+        root_ref = firebase_db.get_ref("test_data")
+        root_data = root_ref.get(firebase_db._get_token())
+        
+        if not root_data or not root_data.val():
+            st.warning("⚠️ Ingen test_data hittad i Firebase")
+            return []
+        
+        # Kontrollera companies-noden
+        companies_ref = firebase_db.get_ref("test_data/companies")
+        data = companies_ref.get(firebase_db._get_token())
         
         if data and data.val():
             companies = []
@@ -463,6 +476,7 @@ def load_test_companies():
         
     except Exception as e:
         st.error(f"❌ Fel vid laddning av företag: {e}")
+        st.write(f"🔍 Debug: Exception type: {type(e)}")
         return []
 
 def load_test_accounts(company_id: str):
