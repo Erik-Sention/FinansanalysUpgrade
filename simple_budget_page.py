@@ -221,19 +221,32 @@ def show_simple_budget_page():
         st.warning("📭 Ingen Excel-data importerad. Gå till 'Test Excel-import' först.")
         return
     
-    st.markdown("### 1. Välj företag")
+    st.markdown("### 1. Välj företag och år")
     
-    # Dropdown med företagsnamn
-    company_options = {company['display_name']: company for company in companies}
-    selected_company_display = st.selectbox(
-        "Välj företag:",
-        list(company_options.keys()),
-        key="simple_company_select"
-    )
+    col1, col2 = st.columns(2)
     
-    selected_company = company_options[selected_company_display]
-    company_id = selected_company['id']
-    company_name = selected_company['name']
+    with col1:
+        # Dropdown med företagsnamn
+        company_options = {company['display_name']: company for company in companies}
+        selected_company_display = st.selectbox(
+            "Välj företag:",
+            list(company_options.keys()),
+            key="simple_company_select"
+        )
+        
+        selected_company = company_options[selected_company_display]
+        company_id = selected_company['id']
+        company_name = selected_company['name']
+    
+    with col2:
+        # År-väljare
+        available_years = [2024, 2025, 2026, 2027, 2028]  # Vanliga budgetår
+        selected_year = st.selectbox(
+            "Välj år:",
+            available_years,
+            index=available_years.index(year) if year in available_years else 1,  # Default till 2025
+            key="simple_year_select"
+        )
     
     
     # STEG 2: Välj kategori och konto
@@ -332,7 +345,7 @@ def show_simple_budget_page():
     st.markdown("### 3. Ange månadsbudget")
     
     # Ladda befintlig budget om den finns
-    existing_budget = load_simple_budget(company_name, year, selected_account_name)
+    existing_budget = load_simple_budget(company_name, selected_year, selected_account_name)
     
     # 12 input-fält för månader i korrekt ordning (Jan-Dec) - KOMPAKT
     months = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec']
@@ -363,7 +376,7 @@ def show_simple_budget_page():
     
     with col2:
         if st.button("Spara budget", type="primary", use_container_width=True):
-            if save_simple_budget(company_name, year, selected_account_name, monthly_values):
+            if save_simple_budget(company_name, selected_year, selected_account_name, monthly_values):
                 st.success("✓ Sparat")
             else:
                 st.error("Fel vid sparande")
@@ -381,7 +394,7 @@ def show_simple_budget_page():
     
     # Visa sammanfattning av alla budgetar för detta företag
     with st.expander("📊 Budgetöversikt för företaget", expanded=False):
-        show_company_budget_summary(company_name, year, accounts)
+        show_company_budget_summary(company_name, selected_year, accounts)
 
 if __name__ == "__main__":
     show_simple_budget_page()

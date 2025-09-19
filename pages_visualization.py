@@ -79,14 +79,23 @@ def get_all_accounts_for_company_year(company_id, year):
                     if account_info.get('company_id') == company_id:
                         account_name = account_info.get('name')
                         
-                        # Hämta budget för detta konto från SIMPLE_BUDGETS
-                        budget_path = f"SIMPLE_BUDGETS/{company_name}/{year}/{account_name}/monthly_values"
-                        budget_ref = firebase_db.get_ref(budget_path)
-                        budget_data = budget_ref.get(firebase_db._get_token())
+                        # Försök först med år, sedan utan år (för bakåtkompatibilitet)
+                        budget_paths = [
+                            f"SIMPLE_BUDGETS/{company_name}/{year}/{account_name}/monthly_values",
+                            f"SIMPLE_BUDGETS/{company_name}/{account_name}/monthly_values"
+                        ]
                         
-                        if budget_data and budget_data.val():
-                            monthly_values = budget_data.val()
+                        monthly_values = None
+                        for budget_path in budget_paths:
+                            budget_ref = firebase_db.get_ref(budget_path)
+                            budget_data = budget_ref.get(firebase_db._get_token())
                             
+                            if budget_data and budget_data.val():
+                                monthly_values = budget_data.val()
+                                print(f"🔍 DEBUG: Hittade budgetdata på {budget_path}")
+                                break
+                        
+                        if monthly_values:
                             # Lägg till varje månad (Firebase har månadsnamn som nycklar)
                             month_mapping = {
                                 'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4,
