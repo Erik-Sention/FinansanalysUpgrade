@@ -502,28 +502,21 @@ def load_test_accounts(company_id: str):
         return []
 
 def load_test_data_with_categories(company_id: str, year: int = 2025):
-    """Ladda test-data med kategorier för ett företag och år"""
+    """Ladda test-data med kategorier för ett företag och år - OPTIMERAD VERSION"""
     try:
         firebase_db = get_firebase_db()
         
-        # Hämta värden
-        values_ref = firebase_db.get_ref("test_data/values")
-        values_data = values_ref.get(firebase_db._get_token())
+        # Hämta ALLT på en gång från test_data root
+        test_data_ref = firebase_db.get_ref("test_data")
+        test_data = test_data_ref.get(firebase_db._get_token())
         
-        # Hämta konton med kategorier
-        accounts_ref = firebase_db.get_ref("test_data/accounts")
-        accounts_data = accounts_ref.get(firebase_db._get_token())
-        
-        # Hämta kategorier
-        categories_ref = firebase_db.get_ref("test_data/categories")
-        categories_data = categories_ref.get(firebase_db._get_token())
-        
-        if not (values_data and values_data.val() and accounts_data and accounts_data.val()):
+        if not test_data or not test_data.val():
             return pd.DataFrame()
         
-        values = values_data.val()
-        accounts = accounts_data.val()
-        categories = categories_data.val() if categories_data and categories_data.val() else {}
+        data_dict = test_data.val()
+        values = data_dict.get('values', {})
+        accounts = data_dict.get('accounts', {})
+        categories = data_dict.get('categories', {})
         
         # Bygg DataFrame med kategorier
         data = []
