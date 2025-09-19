@@ -19,7 +19,7 @@ def load_excel_data_correct(excel_file_path: str = "Finansiell Data.xlsx"):
         
         st.info(f"📋 Hittade {len(all_sheets)} sheets: {all_sheets}")
         
-        # Hitta ALLA företag automatiskt från sheet-namn
+        # Hitta ALLA företag och ALLA år automatiskt från sheet-namn
         companies_found = set()
         for sheet_name in all_sheets:
             parts = sheet_name.split(' ')
@@ -32,14 +32,13 @@ def load_excel_data_correct(excel_file_path: str = "Finansiell Data.xlsx"):
         selected_sheets = []
         
         for company in target_companies:
-            # Hitta senaste året för detta företag
+            # Hitta ALLA år för detta företag
             company_sheets = [s for s in all_sheets if s.startswith(f"{company} ")]
             if company_sheets:
-                # Sortera och ta senaste året
-                latest_sheet = sorted(company_sheets)[-1]
-                selected_sheets.append(latest_sheet)
+                # Lägg till ALLA sheets för detta företag
+                selected_sheets.extend(sorted(company_sheets))
         
-        st.info(f"🎯 IMPORTERAR ALLA FÖRETAG: {selected_sheets}")
+        st.info(f"🎯 IMPORTERAR ALLA FÖRETAG OCH ALLA ÅR: {len(selected_sheets)} sheets")
         
         # Kombinera data från valda sheets
         combined_data = []
@@ -700,15 +699,15 @@ def clear_budget_data():
 def show_excel_import_test():
     """Visa Excel-import test-sidan"""
     st.title("📊 Test: Excel-import till Firebase")
-    st.markdown("Importera ALLA företag och 1 år som test-data")
+    st.markdown("Importera ALLA företag och ALLA år som test-data")
     
     # Info om testet
     with st.expander("ℹ️ Om detta test", expanded=False):
         st.markdown("""
         **Test-import:**
         - 🏢 **ALLA företag** från din Excel-fil (automatisk detektering)
-        - 📅 **1 år**: Senaste året för varje företag
-        - 📋 **Konton**: Alla konton för alla företag
+        - 📅 **ALLA år**: Alla år som finns för varje företag
+        - 📋 **Konton**: Alla konton för alla företag och år
         - 💾 **Sparas under**: `test_data/` i Firebase (lätt att rensa!)
         
         **Firebase-struktur:**
