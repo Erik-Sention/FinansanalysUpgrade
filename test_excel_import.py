@@ -537,22 +537,8 @@ def load_test_data_with_categories(company_id: str, year: int = 2025):
                 category_id = account_info.get('category_id')
                 category_info = categories.get(category_id, {})
                 
-                # Hämta företagsnamn från companies
-                company_name = company_id  # Default till ID
-                try:
-                    companies_ref = firebase_db.get_ref("test_data/companies")
-                    companies_data = companies_ref.get(firebase_db._get_token())
-                    if companies_data and companies_data.val():
-                        company_info = companies_data.val().get(company_id, {})
-                        company_name = company_info.get('name', company_id)
-                        location = company_info.get('location', '')
-                        if location:
-                            company_name = f"{company_name} ({location})"
-                except:
-                    pass
-                
                 data.append({
-                    'Företag': company_name,
+                    'Företag': company_id,
                     'År': year,
                     'Konto': account_info.get('name', 'Okänt'),
                     'Kategori': category_info.get('name', 'Okänd'),
