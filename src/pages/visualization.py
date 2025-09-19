@@ -203,12 +203,15 @@ def show():
         companies_list = []
         if test_data and test_data.val():
             companies_data = test_data.val().get('companies', {})
+            st.info(f"🔍 Hittade {len(companies_data)} företag i test_data")
             for company_id, company_info in companies_data.items():
                 companies_list.append({
                     'id': company_id,
                     'name': company_info['name'],
                     'location': company_info['location']
                 })
+        else:
+            st.warning("⚠️ Ingen test_data hittad i Firebase")
     except Exception as e:
         st.error(f"Fel vid hämtning av företag: {e}")
         companies_list = []
