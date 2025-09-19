@@ -4,26 +4,26 @@ from datetime import datetime
 from utils_firebase_helpers import get_firebase_db
 
 def load_companies_and_years():
-    """Hämta alla företag och år från Excel-data"""
+    """Hämta alla företag och år från Excel-data - OPTIMERAD VERSION"""
     try:
         firebase_db = get_firebase_db()
         
-        # Hämta företag
-        companies_ref = firebase_db.get_ref("test_data/companies")
-        companies_data = companies_ref.get(firebase_db._get_token())
+        # Hämta ALLT på en gång från test_data root
+        test_data_ref = firebase_db.get_ref("test_data")
+        test_data = test_data_ref.get(firebase_db._get_token())
         
-        # Hämta konton för att se vilka företag som har data
-        accounts_ref = firebase_db.get_ref("test_data/accounts")
-        accounts_data = accounts_ref.get(firebase_db._get_token())
+        if not test_data or not test_data.val():
+            return [], 2025
         
-        # Hämta år från metadata
-        meta_ref = firebase_db.get_ref("test_data/meta")
-        meta_data = meta_ref.get(firebase_db._get_token())
-        year = meta_data.val().get('year', 2025) if meta_data and meta_data.val() else 2025
+        data_dict = test_data.val()
+        companies_data = data_dict.get('companies', {})
+        meta_data = data_dict.get('meta', {})
+        
+        year = meta_data.get('year', 2025) if meta_data else 2025
         
         companies = []
-        if companies_data and companies_data.val():
-            for company_id, company_info in companies_data.val().items():
+        if companies_data:
+            for company_id, company_info in companies_data.items():
                 companies.append({
                     'id': company_id,
                     'name': company_info['name'],
@@ -38,32 +38,32 @@ def load_companies_and_years():
         return [], 2025
 
 def load_accounts_for_company(company_id: str):
-    """Hämta alla konton för ett specifikt företag med kategoriinformation"""
+    """Hämta alla konton för ett specifikt företag med kategoriinformation - OPTIMERAD VERSION"""
     try:
         firebase_db = get_firebase_db()
         
-        # Hämta alla konton
-        accounts_ref = firebase_db.get_ref("test_data/accounts")
-        accounts_data = accounts_ref.get(firebase_db._get_token())
+        # Hämta ALLT på en gång från test_data root
+        test_data_ref = firebase_db.get_ref("test_data")
+        test_data = test_data_ref.get(firebase_db._get_token())
         
-        # Hämta kategorier från test_data (samma som importen använder)
-        categories_ref = firebase_db.get_ref("test_data/categories")
-        categories_data = categories_ref.get(firebase_db._get_token())
-        categories = categories_data.val() if categories_data and categories_data.val() else {}
+        if not test_data or not test_data.val():
+            return []
+        
+        data_dict = test_data.val()
+        accounts_data = data_dict.get('accounts', {})
+        categories_data = data_dict.get('categories', {})
         
         accounts = []
-        if accounts_data and accounts_data.val():
-            for account_id, account_info in accounts_data.val().items():
+        if accounts_data:
+            for account_id, account_info in accounts_data.items():
                 if account_info.get('company_id') == company_id:
                     # Hämta kategorinamn baserat på category_id från test_data
                     category_id = account_info.get('category_id')
                     category_name = "Okänd"
-                    if category_id and categories:
-                        category_data = categories.get(category_id)
+                    if category_id and categories_data:
+                        category_data = categories_data.get(category_id)
                         if category_data:
                             category_name = category_data.get('name', 'Okänd')
-                    
-                    print(f"🔍 Debug: Konto '{account_info['name']}' har category_id='{category_id}', kategori='{category_name}'")
                     
                     accounts.append({
                         'id': account_id,
