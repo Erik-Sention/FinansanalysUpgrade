@@ -23,85 +23,67 @@ from utils_firebase_helpers import (
 from models_firebase_database import get_firebase_db
 
 def get_all_accounts_for_company_year(company_id, year):
-    """Hämta alla konton för ett företag och år med både faktiska och budgetdata"""
+    """Hämta alla konton för företag och år från test_data"""
     try:
         firebase_db = get_firebase_db()
         
-        # Hämta datasets för företaget och året
-        datasets = firebase_db.get_datasets(company_id)
-        target_dataset_id = None
-        for dataset_id, dataset_data in datasets.items():
-            if dataset_data.get('year') == year:
-                target_dataset_id = dataset_id
-                break
+        # Hämta ALLT från test_data root
+        test_data_ref = firebase_db.get_ref("test_data")
+        test_data = test_data_ref.get(firebase_db._get_token())
         
-        if not target_dataset_id:
+        if not test_data or not test_data.val():
             return pd.DataFrame()
         
-        # Hämta faktiska värden
-        actual_values = firebase_db.get_values(dataset_id=target_dataset_id)
+        data_dict = test_data.val()
+        values_data = data_dict.get('values', {})
+        accounts_data = data_dict.get('accounts', {})
+        categories_data = data_dict.get('categories', {})
         
-        # Hämta budgetdata
-        budgets = firebase_db.get_budgets(company_id)
-        budget_values = {}
-        
-        # Hitta senaste budget för året
-        latest_budget_id = None
-        latest_date = None
-        
-        for budget_id, budget_data in budgets.items():
-            if budget_data.get('year') == year:
-                updated_at = budget_data.get('updated_at', budget_data.get('created_at'))
-                if latest_date is None or updated_at > latest_date:
-                    latest_date = updated_at
-                    latest_budget_id = budget_id
-        
-        if latest_budget_id:
-            budget_values = firebase_db.get_budget_values(latest_budget_id)
-        
-        # Hämta referensdata
-        accounts = firebase_db.get_accounts()
-        categories = firebase_db.get_account_categories()
+        # Hämta budgetdata från BUDGET_DATABASE
+        budget_ref = firebase_db.get_ref(f"BUDGET_DATABASE/{company_id}/{year}/accounts")
+        budget_data = budget_ref.get(firebase_db._get_token())
         
         # Bygg DataFrame
         data = []
         
-        # Lägg till faktiska värden
-        for value_id, value_data in actual_values.items():
-            if value_data.get('value_type') != 'faktiskt':
-                continue
+        # Lägg till faktiska värden från test_data
+        for value_id, value_data in values_data.items():
+            if (value_data.get('company_id') == company_id and 
+                value_data.get('year') == year and
+                value_data.get('type') == 'actual'):
                 
-            account_id = value_data.get('account_id')
-            account_data = accounts.get(account_id, {})
-            
-            category_id = account_data.get('category_id')
-            category_data = categories.get(category_id, {})
-            
-            data.append({
-                'account_id': account_id,
-                'account_name': account_data.get('name', 'Okänt konto'),
-                'category': category_data.get('name', 'Okänd kategori'),
-                'month': value_data.get('month'),
-                'amount': value_data.get('amount', 0),
-                'type': 'Faktiskt'
-            })
+                account_id = value_data.get('account_id')
+                account_info = accounts_data.get(account_id, {})
+                
+                category_id = account_info.get('category_id')
+                category_info = categories_data.get(category_id, {})
+                
+                data.append({
+                    'account_id': account_id,
+                    'account_name': account_info.get('name', 'Okänt konto'),
+                    'category': category_info.get('name', 'Okänd kategori'),
+                    'month': value_data.get('month'),
+                    'amount': value_data.get('amount', 0),
+                    'type': 'Faktiskt'
+                })
         
-        # Lägg till budgetvärden
-        for value_data in budget_values.values():
-            account_id = value_data.get('account_id')
-            account_data = accounts.get(account_id, {})
-            
-            category_id = account_data.get('category_id')
-            category_data = categories.get(category_id, {})
-            
-            data.append({
-                'account_id': account_id,
-                'account_name': account_data.get('name', 'Okänt konto'),
-                'category': category_data.get('name', 'Okänd kategori'),
-                'month': value_data.get('month'),
-                'amount': value_data.get('amount', 0),
-                'type': 'Budget'
-            })
+        # Lägg till budgetvärden från BUDGET_DATABASE
+        if budget_data and budget_data.val():
+            for account_id, account_data in budget_data.val().items():
+                if 'months' in account_data:
+                    account_info = accounts_data.get(account_id, {})
+                    category_id = account_info.get('category_id')
+                    category_info = categories_data.get(category_id, {})
+                    
+                    for month_idx, month_data in account_data['months'].items():
+                        data.append({
+                            'account_id': account_id,
+                            'account_name': account_info.get('name', 'Okänt konto'),
+                            'category': category_info.get('name', 'Okänd kategori'),
+                            'month': int(month_idx),
+                            'amount': month_data.get('budget_amount', 0),
+                            'type': 'Budget'
+                        })
         
         df = pd.DataFrame(data)
         
@@ -212,10 +194,27 @@ def show():
     st.title("📈 Datavisualisering")
     st.markdown("Välj konton för att jämföra budget mot faktiska värden i linjediagram")
     
-    # Hämta företag
-    companies_list = get_companies()
+    # Hämta företag från test_data
+    try:
+        firebase_db = get_firebase_db()
+        test_data_ref = firebase_db.get_ref("test_data")
+        test_data = test_data_ref.get(firebase_db._get_token())
+        
+        companies_list = []
+        if test_data and test_data.val():
+            companies_data = test_data.val().get('companies', {})
+            for company_id, company_info in companies_data.items():
+                companies_list.append({
+                    'id': company_id,
+                    'name': company_info['name'],
+                    'location': company_info['location']
+                })
+    except Exception as e:
+        st.error(f"Fel vid hämtning av företag: {e}")
+        companies_list = []
+    
     if not companies_list:
-        st.warning("🔧 Ingen data hittad. Kör ETL-processen först.")
+        st.warning("🔧 Ingen data hittad. Kör Excel-import först.")
         return
     
     # Skapa två kolumner för val
@@ -244,8 +243,24 @@ def show():
         selected_company_id = company_options[selected_company_name]
     
     with col2:
-        # Årval
-        available_years = get_years_for_company(selected_company_id)
+        # Årval från test_data
+        try:
+            firebase_db = get_firebase_db()
+            test_data_ref = firebase_db.get_ref("test_data")
+            test_data = test_data_ref.get(firebase_db._get_token())
+            
+            available_years = []
+            if test_data and test_data.val():
+                values_data = test_data.val().get('values', {})
+                years_found = set()
+                for value_id, value_data in values_data.items():
+                    if value_data.get('company_id') == selected_company_id:
+                        years_found.add(value_data.get('year'))
+                available_years = sorted(list(years_found))
+        except Exception as e:
+            st.error(f"Fel vid hämtning av år: {e}")
+            available_years = []
+        
         if not available_years:
             st.warning("Inga år hittade för detta företag")
             return
