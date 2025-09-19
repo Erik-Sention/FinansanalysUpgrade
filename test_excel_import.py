@@ -306,9 +306,9 @@ def save_test_data_to_firebase(df: pd.DataFrame) -> bool:
             "meta": {
                 "created_at": datetime.now().isoformat(),
                 "description": f"Excel import från {len(companies_to_import)} företag för år {unique_years}",
-                "years": unique_years,
-                "companies_count": len(companies_to_import),
-                "accounts_count": len(df),
+                "years": [int(year) for year in unique_years],
+                "companies_count": int(len(companies_to_import)),
+                "accounts_count": int(len(df)),
                 "excel_columns": list(df.columns),
                 "imported_companies": list(companies_to_import)
             },
@@ -422,8 +422,8 @@ def save_test_data_to_firebase(df: pd.DataFrame) -> bool:
                             test_data["values"][value_id] = {
                                 "company_id": company_id,
                                 "account_id": account_id,
-                                "year": int(import_year),
-                                "month": month_num,
+                                "year": int(row['År']) if 'År' in row else int(import_year),
+                                "month": int(month_num),
                                 "amount": float(row[month_col]),
                                 "type": "actual",
                                 "created_at": datetime.now().isoformat()
