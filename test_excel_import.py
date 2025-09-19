@@ -773,20 +773,40 @@ def show_excel_import_test():
             )
             selected_company_id = company_options[selected_company_name]
             
-            # Hämta år från metadata
+            # Hämta alla tillgängliga år för detta företag - OPTIMERAD VERSION
             try:
                 firebase_db = get_firebase_db()
-                meta_ref = firebase_db.get_ref("test_data/meta")
-                meta_data = meta_ref.get(firebase_db._get_token())
-                import_year = meta_data.val().get('year', 2025) if meta_data and meta_data.val() else 2025
-            except:
-                import_year = 2025
+                test_data_ref = firebase_db.get_ref("test_data")
+                test_data = test_data_ref.get(firebase_db._get_token())
+                
+                available_years = set()
+                if test_data and test_data.val():
+                    values_data = test_data.val().get('values', {})
+                    for value_id, value_data in values_data.items():
+                        if value_data.get('company_id') == selected_company_id:
+                            available_years.add(value_data.get('year'))
+                
+                available_years = sorted(list(available_years))
+                
+                if available_years:
+                    selected_year = st.selectbox(
+                        "Välj år för att visa data:",
+                        available_years,
+                        index=len(available_years)-1  # Välj senaste året som default
+                    )
+                else:
+                    st.warning("Inga år hittade för detta företag")
+                    selected_year = 2025
+                    
+            except Exception as e:
+                st.error(f"❌ Fel vid hämtning av år: {e}")
+                selected_year = 2025
             
             # Ladda och visa all data med kategorier
-            st.markdown(f"#### 📊 Data för {selected_company_name} (År: {import_year})")
+            st.markdown(f"#### 📊 Data för {selected_company_name} (År: {selected_year})")
             
             # Hämta data med kategorier
-            df_with_categories = load_test_data_with_categories(selected_company_id, import_year)
+            df_with_categories = load_test_data_with_categories(selected_company_id, selected_year)
             
             if not df_with_categories.empty:
                 st.success(f"✅ Hittade data för {len(df_with_categories)} konton")
