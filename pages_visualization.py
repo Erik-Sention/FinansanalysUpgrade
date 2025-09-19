@@ -415,6 +415,9 @@ def show():
     # Hämta all data för valt företag och år
     all_data_df = get_all_accounts_for_company_year(selected_company_id, selected_year)
     
+    # DEBUG: Visa antal rader per typ
+    st.write("DEBUG – antal rader per typ:", all_data_df['type'].value_counts(dropna=False))
+    
     if all_data_df.empty:
         st.warning("Ingen data hittad för valt företag och år")
         return
