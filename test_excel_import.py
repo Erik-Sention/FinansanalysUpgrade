@@ -551,7 +551,7 @@ def load_test_data_with_categories(company_id: str, year: int = 2025):
         
         df = pd.DataFrame(data)
         
-        # Pivotera för att få månader som kolumner
+        # Pivotera för att få månader som kolumner (använd månadsnummer som kolumner)
         df_pivot = df.pivot_table(
             index=['Företag', 'År', 'Konto', 'Kategori'], 
             columns='Månad', 
@@ -559,7 +559,16 @@ def load_test_data_with_categories(company_id: str, year: int = 2025):
             fill_value=0
         ).reset_index()
         
-        # Lägg till månadskolumner i rätt ordning
+        # Mappa månadsnummer till månadsnamn
+        month_mapping = {
+            1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'Maj', 6: 'Jun',
+            7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Okt', 11: 'Nov', 12: 'Dec'
+        }
+        
+        # Byt namn på kolumner från månadsnummer till månadsnamn
+        df_pivot.columns = [month_mapping.get(col, col) if isinstance(col, int) and col in month_mapping else col for col in df_pivot.columns]
+        
+        # Lägg till månadskolumner i rätt ordning (om någon saknas)
         months_order = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec']
         for month in months_order:
             if month not in df_pivot.columns:
