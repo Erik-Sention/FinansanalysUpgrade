@@ -316,6 +316,20 @@ def show():
     # DEBUG: Visa att vi är i rätt fil
     st.error("🔍 DEBUG: Vi är i pages_visualization.py - den RÄTTA filen!")
     
+    # DEBUG: Testa budget-hämtning direkt
+    try:
+        firebase_db = get_firebase_db()
+        budget_path = "SIMPLE_BUDGETS/AAB/2025/Autogenererade KF-fakturor från autogirot MS, 6% moms/monthly_values"
+        budget_ref = firebase_db.get_ref(budget_path)
+        budget_data = budget_ref.get(firebase_db._get_token())
+        
+        if budget_data and budget_data.val():
+            st.success(f"✅ HITTADE BUDGETDATA! {budget_data.val()}")
+        else:
+            st.error(f"❌ INGEN BUDGETDATA på {budget_path}")
+    except Exception as e:
+        st.error(f"❌ FEL vid budget-hämtning: {e}")
+    
     # Hämta företag från test_data
     try:
         firebase_db = get_firebase_db()
