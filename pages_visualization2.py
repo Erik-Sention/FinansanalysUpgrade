@@ -131,7 +131,14 @@ def get_visualization_data(company_id, year):
         df = pd.DataFrame(data)
         
         if not df.empty:
-            df = df.sort_values(['category', 'account_name', 'month'])
+            # Extra skydd mot dubletter
+            df = df.drop_duplicates(subset=['account_id','type','month']) \
+                   .sort_values(['category','account_name','month'])
+            
+            # Debug: visa antal rader efter deduplicering
+            budget_count = len(df[df['type'] == 'Budget'])
+            faktiskt_count = len(df[df['type'] == 'Faktiskt'])
+            print(f"DEBUG: Efter deduplicering - Faktiskt: {faktiskt_count}, Budget: {budget_count}")
         
         return df
         
