@@ -22,6 +22,7 @@ from utils_firebase_helpers import (
 )
 from models_firebase_database import get_firebase_db
 
+@st.cache_data(ttl=300)
 def get_visualization_data(company_id, year):
     """Hämta data för visualisering - enkel och snabb version"""
     try:
@@ -63,47 +64,69 @@ def get_visualization_data(company_id, year):
                     'type': 'Faktiskt'
                 })
         
-        # Lägg till budgetvärden från SIMPLE_BUDGETS
+        # Lägg till budgetvärden från SIMPLE_BUDGETS - EN ENDA FETCH FÖR HELA ÅRET
         company_name = None
         for comp_id, comp_info in companies_data.items():
             if comp_id == company_id:
                 company_name = comp_info.get('name')
                 break
         
-        if company_name:
-            # Hämta budget för alla konton för detta företag
+        if not company_name:
+            print(f"DEBUG: company_name saknas för {company_id}")
+        else:
+            # 1 enda RTDB-fetch: alla konton under SIMPLE_BUDGETS/<company>/<year>
+            budget_year_ref = firebase_db.get_ref(f"SIMPLE_BUDGETS/{company_name}/{year}")
+            budget_year_data = budget_year_ref.get(firebase_db._get_token())
+            year_node = budget_year_data.val() if (budget_year_data and budget_year_data.val()) else {}
+            
+            # Tolerera sv/eng månadsnamn
+            month_mapping = {
+                'Jan':1, 'Feb':2, 'Mar':3, 'Apr':4, 'Maj':5, 'May':5, 'Jun':6, 'Jul':7,
+                'Aug':8, 'Sep':9, 'Okt':10, 'Oct':10, 'Nov':11, 'Dec':12
+            }
+            
+            # Undvik dubbletter: håll koll på (account_id, month)
+            seen = set()
+            
             for account_id, account_info in accounts_data.items():
-                if account_info.get('company_id') == company_id:
-                    account_name = account_info.get('name')
+                if account_info.get('company_id') != company_id:
+                    continue
+                
+                account_name = account_info.get('name')
+                node = year_node.get(account_name, {})
+                monthly_values = (node or {}).get('monthly_values', {})
+                
+                if not monthly_values:
+                    continue
+                
+                category_id = account_info.get('category_id')
+                category_info = categories_data.get(category_id, {})
+                
+                for month_name, amount in monthly_values.items():
+                    if month_name not in month_mapping or not amount:
+                        continue
                     
-                    # Hämta budget från SIMPLE_BUDGETS
-                    budget_path = f"SIMPLE_BUDGETS/{company_name}/{year}/{account_name}/monthly_values"
-                    budget_ref = firebase_db.get_ref(budget_path)
-                    budget_data = budget_ref.get(firebase_db._get_token())
+                    m = month_mapping[month_name]
+                    key = (account_id, m)
+                    if key in seen:
+                        # skydd mot dubletter vid ev. återanrop
+                        continue
+                    seen.add(key)
                     
-                    if budget_data and budget_data.val():
-                        monthly_values = budget_data.val()
-                        
-                        # Månads-mappning
-                        month_mapping = {
-                            'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4,
-                            'Maj': 5, 'Jun': 6, 'Jul': 7, 'Aug': 8,
-                            'Sep': 9, 'Okt': 10, 'Nov': 11, 'Dec': 12
-                        }
-                        
-                        for month_name, amount in monthly_values.items():
-                            if amount != 0 and month_name in month_mapping:
-                                category_id = account_info.get('category_id')
-                                category_info = categories_data.get(category_id, {})
-                                
-                                data.append({
-                                    'account_id': account_id,
-                                    'account_name': account_name,
-                                    'category': category_info.get('name', 'Okänd kategori'),
-                                    'month': month_mapping[month_name],
-                                    'amount': float(amount),
-                                    'type': 'Budget'
-                                })
+                    try:
+                        amt = float(amount)
+                    except (TypeError, ValueError):
+                        continue
+                    
+                    data.append({
+                        'account_id': account_id,
+                        'account_name': account_name,
+                        'category': category_info.get('name', 'Okänd kategori'),
+                        'month': m,
+                        'amount': amt,
+                        'type': 'Budget'
+                    })
+            print(f"DEBUG: lade till {len([r for r in data if r['type']=='Budget'])} budgetrader.")
         
         df = pd.DataFrame(data)
         
@@ -290,7 +313,7 @@ def show():
         st.warning("Ingen data hittad för valt företag och år")
         return
     
-    # Visa debug-info
+    # Visa debug-info EFTER tom-kollen
     st.info(f"📊 **Data laddad:** {len(all_data_df)} rader totalt")
     type_counts = all_data_df['type'].value_counts()
     st.write(f"**Faktiskt:** {type_counts.get('Faktiskt', 0)} rader | **Budget:** {type_counts.get('Budget', 0)} rader")
