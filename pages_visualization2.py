@@ -64,7 +64,8 @@ def get_visualization_data(company_id, year):
                     'type': 'Faktiskt'
                 })
         
-        # Lägg till budgetvärden från SIMPLE_BUDGETS - EN ENDA FETCH FÖR HELA ÅRET
+        # --- Budgetvärden: hämta EN gång per kontonamn ---
+        companies_data = data_dict.get('companies', {})
         company_name = None
         for comp_id, comp_info in companies_data.items():
             if comp_id == company_id:
@@ -74,27 +75,25 @@ def get_visualization_data(company_id, year):
         if not company_name:
             print(f"DEBUG: company_name saknas för {company_id}")
         else:
-            # 1 enda RTDB-fetch: alla konton under SIMPLE_BUDGETS/<company>/<year>
-            budget_year_ref = firebase_db.get_ref(f"SIMPLE_BUDGETS/{company_name}/{year}")
-            budget_year_data = budget_year_ref.get(firebase_db._get_token())
-            year_node = budget_year_data.val() if (budget_year_data and budget_year_data.val()) else {}
-            
-            # Tolerera sv/eng månadsnamn
             month_mapping = {
-                'Jan':1, 'Feb':2, 'Mar':3, 'Apr':4, 'Maj':5, 'May':5, 'Jun':6, 'Jul':7,
-                'Aug':8, 'Sep':9, 'Okt':10, 'Oct':10, 'Nov':11, 'Dec':12
+                'Jan':1,'Feb':2,'Mar':3,'Apr':4,'Maj':5,'May':5,'Jun':6,'Jul':7,
+                'Aug':8,'Sep':9,'Okt':10,'Oct':10,'Nov':11,'Dec':12
             }
             
-            # Undvik dubbletter: håll koll på (account_id, month)
-            seen = set()
-            
+            processed_names = set()   # ✅ lägg inte samma kontonamn två gånger
             for account_id, account_info in accounts_data.items():
                 if account_info.get('company_id') != company_id:
                     continue
                 
                 account_name = account_info.get('name')
-                node = year_node.get(account_name, {})
-                monthly_values = (node or {}).get('monthly_values', {})
+                if account_name in processed_names:
+                    continue
+                processed_names.add(account_name)
+                
+                budget_path = f"SIMPLE_BUDGETS/{company_name}/{year}/{account_name}/monthly_values"
+                budget_ref = firebase_db.get_ref(budget_path)
+                budget_data = budget_ref.get(firebase_db._get_token())
+                monthly_values = budget_data.val() if (budget_data and budget_data.val()) else {}
                 
                 if not monthly_values:
                     continue
@@ -103,23 +102,16 @@ def get_visualization_data(company_id, year):
                 category_info = categories_data.get(category_id, {})
                 
                 for month_name, amount in monthly_values.items():
-                    if month_name not in month_mapping or not amount:
+                    m = month_mapping.get(month_name)
+                    if not m or not amount:
                         continue
-                    
-                    m = month_mapping[month_name]
-                    key = (account_id, m)
-                    if key in seen:
-                        # skydd mot dubletter vid ev. återanrop
-                        continue
-                    seen.add(key)
-                    
                     try:
                         amt = float(amount)
                     except (TypeError, ValueError):
                         continue
                     
                     data.append({
-                        'account_id': account_id,
+                        'account_id': account_id,            # första id:et för namnet
                         'account_name': account_name,
                         'category': category_info.get('name', 'Okänd kategori'),
                         'month': m,
@@ -131,8 +123,11 @@ def get_visualization_data(company_id, year):
         df = pd.DataFrame(data)
         
         if not df.empty:
-            # Extra skydd mot dubletter - mer specifik
-            df = df.drop_duplicates(subset=['account_id', 'type', 'month'], keep='first') \
+            # dedupe bara budget-rader på kontonamn+månad
+            mask = df['type'] == 'Budget'
+            df_budget = df[mask].drop_duplicates(subset=['account_name','month'])
+            df_actual = df[~mask]
+            df = pd.concat([df_actual, df_budget], ignore_index=True) \
                    .sort_values(['category','account_name','month'])
             
             # Debug: visa antal rader efter deduplicering
