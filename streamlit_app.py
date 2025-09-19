@@ -27,7 +27,7 @@ except ImportError:
 # Importera moduler från root-nivån (endast de som INTE använder firebase_admin)
 try:
     import pages_auth as auth
-    import pages_visualization as visualization
+    import pages_visualization2 as visualization
     from utils_auth import require_authentication, show_user_info, get_auth
     
     # Importera ENDAST från fungerende sidor
@@ -56,7 +56,7 @@ if firebase_auth.is_authenticated():
     # Navigation för inloggade användare (endast fungerende sidor)
     page = st.sidebar.selectbox(
         "Välj sida",
-        ["🧪 Test-input (Firebase)", "📊 Test Excel-import", "💰 Budget-redigering", "💾 Finansdatabas (Pyrebase)", "📈 Visualisering"],
+        ["🧪 Test-input (Firebase)", "📊 Test Excel-import", "💰 Budget-redigering", "💾 Finansdatabas (Pyrebase)", "📈 Visualisering v2"],
         index=1  # Börja med Excel-import
     )
     
@@ -74,7 +74,7 @@ if firebase_auth.is_authenticated():
         show_simple_budget_page()
     elif page == "💾 Finansdatabas (Pyrebase)":
         excel_view.show()
-    elif page == "📈 Visualisering":
+    elif page == "📈 Visualisering v2":
         visualization.show()
         
 else:
