@@ -501,6 +501,80 @@ def load_test_accounts(company_id: str):
         st.error(f"❌ Fel vid laddning av konton: {e}")
         return []
 
+def load_test_data_with_categories(company_id: str, year: int = 2025):
+    """Ladda test-data med kategorier för ett företag och år"""
+    try:
+        firebase_db = get_firebase_db()
+        
+        # Hämta värden
+        values_ref = firebase_db.get_ref("test_data/values")
+        values_data = values_ref.get(firebase_db._get_token())
+        
+        # Hämta konton med kategorier
+        accounts_ref = firebase_db.get_ref("test_data/accounts")
+        accounts_data = accounts_ref.get(firebase_db._get_token())
+        
+        # Hämta kategorier
+        categories_ref = firebase_db.get_ref("test_data/categories")
+        categories_data = categories_ref.get(firebase_db._get_token())
+        
+        if not (values_data and values_data.val() and accounts_data and accounts_data.val()):
+            return pd.DataFrame()
+        
+        values = values_data.val()
+        accounts = accounts_data.val()
+        categories = categories_data.val() if categories_data and categories_data.val() else {}
+        
+        # Bygg DataFrame med kategorier
+        data = []
+        for value_id, value_data in values.items():
+            if (value_data.get('company_id') == company_id and 
+                value_data.get('year') == year):
+                
+                account_id = value_data.get('account_id')
+                account_info = accounts.get(account_id, {})
+                
+                category_id = account_info.get('category_id')
+                category_info = categories.get(category_id, {})
+                
+                data.append({
+                    'Företag': company_id,
+                    'År': year,
+                    'Konto': account_info.get('name', 'Okänt'),
+                    'Kategori': category_info.get('name', 'Okänd'),
+                    'Månad': value_data.get('month'),
+                    'Belopp': value_data.get('amount', 0)
+                })
+        
+        if not data:
+            return pd.DataFrame()
+        
+        df = pd.DataFrame(data)
+        
+        # Pivotera för att få månader som kolumner
+        df_pivot = df.pivot_table(
+            index=['Företag', 'År', 'Konto', 'Kategori'], 
+            columns='Månad', 
+            values='Belopp', 
+            fill_value=0
+        ).reset_index()
+        
+        # Lägg till månadskolumner i rätt ordning
+        months_order = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec']
+        for month in months_order:
+            if month not in df_pivot.columns:
+                df_pivot[month] = 0
+        
+        # Ordna kolumner
+        final_columns = ['Företag', 'År', 'Konto', 'Kategori'] + months_order
+        df_pivot = df_pivot[final_columns]
+        
+        return df_pivot
+        
+    except Exception as e:
+        st.error(f"❌ Fel vid laddning av data med kategorier: {e}")
+        return pd.DataFrame()
+
 def load_test_values(company_id: str, year: int = 2025):
     """Ladda test-värden för ett företag och år"""
     try:
@@ -699,54 +773,16 @@ def show_excel_import_test():
             except:
                 import_year = 2025
             
-            # Ladda och visa all data direkt från values  
+            # Ladda och visa all data med kategorier
             st.markdown(f"#### 📊 Data för {selected_company_name} (År: {import_year})")
             
-            # Hämta alla värden för företaget
-            values = load_test_values(selected_company_id, import_year)
+            # Hämta data med kategorier
+            df_with_categories = load_test_data_with_categories(selected_company_id, import_year)
             
-            if values:
-                st.success(f"✅ Hittade data för {len(values)} konton")
-                
-                # Hämta kontonamn från accounts (för display)
-                try:
-                    firebase_db = get_firebase_db()
-                    accounts_ref = firebase_db.get_ref("test_data/accounts")
-                    accounts_data = accounts_ref.get(firebase_db._get_token())
-                    
-                    account_names = {}
-                    if accounts_data and accounts_data.val():
-                        for acc_id, acc_data in accounts_data.val().items():
-                            account_names[acc_id] = acc_data.get('name', acc_id)
-                except:
-                    account_names = {}
-                
-                # Skapa display-tabell
-                display_data = []
-                for account_id, month_values in values.items():
-                    account_name = account_names.get(account_id, account_id)
-                    
-                    row = {
-                        'Företag': selected_company_name.split(' (')[0],  # Ta bort (location)
-                        'År': import_year,
-                        'Konto': account_name,
-                        'Kategori': ''  # Kan läggas till senare om behövs
-                    }
-                    
-                    # Lägg till månadskolumner
-                    for month in range(1, 13):
-                        month_name = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun',
-                                    'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'][month-1]
-                        row[month_name] = month_values.get(month, 0)
-                    
-                    display_data.append(row)
-                
-                if display_data:
-                    df_display = pd.DataFrame(display_data)
-                    st.dataframe(df_display, use_container_width=True, height=400)
-                    st.info(f"📊 Visar {len(display_data)} rader med finansiell data")
-                else:
-                    st.warning("Inga värden att visa")
+            if not df_with_categories.empty:
+                st.success(f"✅ Hittade data för {len(df_with_categories)} konton")
+                st.dataframe(df_with_categories, use_container_width=True, height=400)
+                st.info(f"📊 Visar {len(df_with_categories)} rader med finansiell data")
             else:
                 st.warning(f"Ingen data hittad för {selected_company_name} år {import_year}")
                 
