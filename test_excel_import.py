@@ -292,15 +292,21 @@ def save_test_data_to_firebase(df: pd.DataFrame) -> bool:
             st.error("❌ Inga företag att importera!")
             return False
         
-        # Bestäm år från data (ta från första raden)
-        import_year = df['År'].iloc[0] if 'År' in df.columns else 2025
+        # Hitta alla år i data (vi har flera år nu!)
+        if 'År' in df.columns:
+            unique_years = sorted(df['År'].unique())
+            st.info(f"📅 Hittade år: {unique_years}")
+            # Använd första året för metadata (men vi sparar alla år)
+            import_year = unique_years[0]
+        else:
+            import_year = 2025
         
         # Skapa test_data struktur
         test_data = {
             "meta": {
                 "created_at": datetime.now().isoformat(),
-                "description": f"Excel import från 2 företag för år {import_year}",
-                "year": int(import_year),
+                "description": f"Excel import från {len(companies_to_import)} företag för år {unique_years}",
+                "years": unique_years,
                 "companies_count": len(companies_to_import),
                 "accounts_count": len(df),
                 "excel_columns": list(df.columns),
