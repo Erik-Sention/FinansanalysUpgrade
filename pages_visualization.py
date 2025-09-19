@@ -68,7 +68,8 @@ def get_all_accounts_for_company_year(company_id, year):
         try:
             print(f"🔍 DEBUG: Söker budgetdata för company_id={company_id}, year={year}")
             
-            # Hämta företagsnamn från companies_data
+            # Hämta företagsnamn från companies_data (som nu finns i data_dict)
+            companies_data = data_dict.get('companies', {})
             company_name = None
             for comp_id, comp_info in companies_data.items():
                 if comp_id == company_id:
@@ -138,7 +139,8 @@ def get_all_accounts_for_company_year(company_id, year):
         try:
             print(f"🔍 DEBUG: Söker budgetdata för company_id={company_id}, year={year}")
             
-            # Hämta företagsnamn från companies_data
+            # Hämta företagsnamn från companies_data (som nu finns i data_dict)
+            companies_data = data_dict.get('companies', {})
             company_name = None
             for comp_id, comp_info in companies_data.items():
                 if comp_id == company_id:
