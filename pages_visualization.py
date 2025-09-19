@@ -134,6 +134,76 @@ def get_all_accounts_for_company_year(company_id, year):
             import traceback
             traceback.print_exc()
         
+        # Lägg till budgetvärden från SIMPLE_BUDGETS (samma som budget-redigeringssidan)
+        try:
+            print(f"🔍 DEBUG: Söker budgetdata för company_id={company_id}, year={year}")
+            
+            # Hämta företagsnamn från companies_data
+            company_name = None
+            for comp_id, comp_info in companies_data.items():
+                if comp_id == company_id:
+                    company_name = comp_info.get('name')
+                    break
+            
+            print(f"🔍 DEBUG: company_name = {company_name}")
+            
+            if company_name:
+                # Hämta alla konton för detta företag
+                for account_id, account_info in accounts_data.items():
+                    if account_info.get('company_id') == company_id:
+                        account_name = account_info.get('name')
+                        print(f"🔍 DEBUG: Kontrollerar konto: {account_name}")
+                        
+                        # Hämta budget för detta konto från SIMPLE_BUDGETS
+                        budget_path = f"SIMPLE_BUDGETS/{company_name}/{year}/{account_name}/monthly_values"
+                        print(f"🔍 DEBUG: Söker på sökväg: {budget_path}")
+                        
+                        budget_ref = firebase_db.get_ref(budget_path)
+                        budget_data = budget_ref.get(firebase_db._get_token())
+                        
+                        print(f"🔍 DEBUG: budget_data = {budget_data}")
+                        if budget_data:
+                            print(f"🔍 DEBUG: budget_data.val() = {budget_data.val()}")
+                        
+                        if budget_data and budget_data.val():
+                            monthly_values = budget_data.val()
+                            print(f"🔍 DEBUG: ✅ Hittade budgetdata på {budget_path}")
+                            print(f"🔍 DEBUG: monthly_values = {monthly_values}")
+                            
+                            # Lägg till varje månad (Firebase har månadsnamn som nycklar)
+                            month_mapping = {
+                                'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4,
+                                'Maj': 5, 'Jun': 6, 'Jul': 7, 'Aug': 8,
+                                'Sep': 9, 'Okt': 10, 'Nov': 11, 'Dec': 12
+                            }
+                            
+                            budget_count = 0
+                            for month_name, amount in monthly_values.items():
+                                if amount != 0 and month_name in month_mapping:  # Bara lägg till om det finns värde
+                                    category_id = account_info.get('category_id')
+                                    category_info = categories_data.get(category_id, {})
+                                    
+                                    data.append({
+                                        'account_id': account_id,
+                                        'account_name': account_name,
+                                        'category': category_info.get('name', 'Okänd kategori'),
+                                        'month': month_mapping[month_name],
+                                        'amount': float(amount),
+                                        'type': 'Budget'
+                                    })
+                                    budget_count += 1
+                                    print(f"🔍 DEBUG: ✅ Lade till budget: {month_name} = {amount}")
+                            
+                            print(f"🔍 DEBUG: ✅ Totalt {budget_count} budgetvärden lade till för {account_name}")
+                        else:
+                            print(f"🔍 DEBUG: ❌ Ingen budgetdata på {budget_path}")
+            else:
+                print(f"🔍 DEBUG: ❌ Kunde inte hitta company_name för company_id={company_id}")
+        except Exception as e:
+            print(f"🔍 DEBUG: ❌ Fel vid hämtning av budgetdata: {e}")
+            import traceback
+            traceback.print_exc()
+        
         df = pd.DataFrame(data)
         
         if not df.empty:
