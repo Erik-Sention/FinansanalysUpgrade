@@ -330,6 +330,9 @@ def show():
     except Exception as e:
         st.error(f"❌ FEL vid budget-hämtning: {e}")
     
+    # DEBUG: Visa att budgetdata nu ska visas
+    st.info("🎯 Nu ska budgetdata visas i diagrammet och tabellen!")
+    
     # Hämta företag från test_data
     try:
         firebase_db = get_firebase_db()
