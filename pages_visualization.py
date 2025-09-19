@@ -313,6 +313,9 @@ def show():
     st.title("📈 Datavisualisering")
     st.markdown("Välj konton för att jämföra budget mot faktiska värden i linjediagram")
     
+    # DEBUG: Visa att vi är i rätt fil
+    st.error("🔍 DEBUG: Vi är i pages_visualization.py - den RÄTTA filen!")
+    
     # Hämta företag från test_data
     try:
         firebase_db = get_firebase_db()
