@@ -80,16 +80,22 @@ def get_all_accounts_for_company_year(company_id, year):
                         account_name = account_info.get('name')
                         
                         # Hämta budget för detta konto från SIMPLE_BUDGETS
-                        budget_path = f"SIMPLE_BUDGETS/{company_name}/{year}/{account_name}"
+                        budget_path = f"SIMPLE_BUDGETS/{company_name}/{year}/{account_name}/monthly_values"
                         budget_ref = firebase_db.get_ref(budget_path)
                         budget_data = budget_ref.get(firebase_db._get_token())
                         
                         if budget_data and budget_data.val():
-                            monthly_values = budget_data.val().get('monthly_values', {})
+                            monthly_values = budget_data.val()
                             
-                            # Lägg till varje månad
-                            for month_idx, amount in monthly_values.items():
-                                if amount != 0:  # Bara lägg till om det finns värde
+                            # Lägg till varje månad (Firebase har månadsnamn som nycklar)
+                            month_mapping = {
+                                'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4,
+                                'Maj': 5, 'Jun': 6, 'Jul': 7, 'Aug': 8,
+                                'Sep': 9, 'Okt': 10, 'Nov': 11, 'Dec': 12
+                            }
+                            
+                            for month_name, amount in monthly_values.items():
+                                if amount != 0 and month_name in month_mapping:  # Bara lägg till om det finns värde
                                     category_id = account_info.get('category_id')
                                     category_info = categories_data.get(category_id, {})
                                     
@@ -97,7 +103,7 @@ def get_all_accounts_for_company_year(company_id, year):
                                         'account_id': account_id,
                                         'account_name': account_name,
                                         'category': category_info.get('name', 'Okänd kategori'),
-                                        'month': int(month_idx),
+                                        'month': month_mapping[month_name],
                                         'amount': float(amount),
                                         'type': 'Budget'
                                     })
