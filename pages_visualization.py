@@ -39,9 +39,6 @@ def get_all_accounts_for_company_year(company_id, year):
         accounts_data = data_dict.get('accounts', {})
         categories_data = data_dict.get('categories', {})
         
-        # Hämta budgetdata från BUDGET_DATABASE
-        budget_ref = firebase_db.get_ref(f"BUDGET_DATABASE/{company_id}/{year}/accounts")
-        budget_data = budget_ref.get(firebase_db._get_token())
         
         # Bygg DataFrame
         data = []
@@ -67,34 +64,45 @@ def get_all_accounts_for_company_year(company_id, year):
                     'type': 'Faktiskt'
                 })
         
-        # Lägg till budgetvärden från BUDGET_DATABASE
-        if budget_data and budget_data.val():
-            print(f"🔍 DEBUG: Hittade budgetdata för {company_id} {year}")
-            for account_id, account_data in budget_data.val().items():
-                if 'months' in account_data:
-                    account_info = accounts_data.get(account_id, {})
-                    category_id = account_info.get('category_id')
-                    category_info = categories_data.get(category_id, {})
-                    
-                    print(f"🔍 DEBUG: Konto {account_info.get('name', 'Okänt')} har {len(account_data['months'])} månader")
-                    
-                    for month_idx, month_data in account_data['months'].items():
-                        budget_amount = month_data.get('budget_amount', 0)
-                        print(f"🔍 DEBUG: Månad {month_idx}: {budget_amount}")
+        # Lägg till budgetvärden från SIMPLE_BUDGETS (samma som budget-redigeringssidan)
+        try:
+            # Hämta företagsnamn från companies_data
+            company_name = None
+            for comp_id, comp_info in companies_data.items():
+                if comp_id == company_id:
+                    company_name = comp_info.get('name')
+                    break
+            
+            if company_name:
+                # Hämta alla konton för detta företag
+                for account_id, account_info in accounts_data.items():
+                    if account_info.get('company_id') == company_id:
+                        account_name = account_info.get('name')
                         
-                        data.append({
-                            'account_id': account_id,
-                            'account_name': account_info.get('name', 'Okänt konto'),
-                            'category': category_info.get('name', 'Okänd kategori'),
-                            'month': int(month_idx),
-                            'amount': budget_amount,
-                            'type': 'Budget'
-                        })
-        else:
-            print(f"🔍 DEBUG: Ingen budgetdata hittad för {company_id} {year}")
-            print(f"🔍 DEBUG: budget_data = {budget_data}")
-            if budget_data:
-                print(f"🔍 DEBUG: budget_data.val() = {budget_data.val()}")
+                        # Hämta budget för detta konto från SIMPLE_BUDGETS
+                        budget_path = f"SIMPLE_BUDGETS/{company_name}/{year}/{account_name}"
+                        budget_ref = firebase_db.get_ref(budget_path)
+                        budget_data = budget_ref.get(firebase_db._get_token())
+                        
+                        if budget_data and budget_data.val():
+                            monthly_values = budget_data.val().get('monthly_values', {})
+                            
+                            # Lägg till varje månad
+                            for month_idx, amount in monthly_values.items():
+                                if amount != 0:  # Bara lägg till om det finns värde
+                                    category_id = account_info.get('category_id')
+                                    category_info = categories_data.get(category_id, {})
+                                    
+                                    data.append({
+                                        'account_id': account_id,
+                                        'account_name': account_name,
+                                        'category': category_info.get('name', 'Okänd kategori'),
+                                        'month': int(month_idx),
+                                        'amount': float(amount),
+                                        'type': 'Budget'
+                                    })
+        except Exception as e:
+            print(f"🔍 DEBUG: Fel vid hämtning av budgetdata: {e}")
         
         df = pd.DataFrame(data)
         
