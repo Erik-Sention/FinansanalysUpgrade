@@ -69,21 +69,32 @@ def get_all_accounts_for_company_year(company_id, year):
         
         # Lägg till budgetvärden från BUDGET_DATABASE
         if budget_data and budget_data.val():
+            print(f"🔍 DEBUG: Hittade budgetdata för {company_id} {year}")
             for account_id, account_data in budget_data.val().items():
                 if 'months' in account_data:
                     account_info = accounts_data.get(account_id, {})
                     category_id = account_info.get('category_id')
                     category_info = categories_data.get(category_id, {})
                     
+                    print(f"🔍 DEBUG: Konto {account_info.get('name', 'Okänt')} har {len(account_data['months'])} månader")
+                    
                     for month_idx, month_data in account_data['months'].items():
+                        budget_amount = month_data.get('budget_amount', 0)
+                        print(f"🔍 DEBUG: Månad {month_idx}: {budget_amount}")
+                        
                         data.append({
                             'account_id': account_id,
                             'account_name': account_info.get('name', 'Okänt konto'),
                             'category': category_info.get('name', 'Okänd kategori'),
                             'month': int(month_idx),
-                            'amount': month_data.get('budget_amount', 0),
+                            'amount': budget_amount,
                             'type': 'Budget'
                         })
+        else:
+            print(f"🔍 DEBUG: Ingen budgetdata hittad för {company_id} {year}")
+            print(f"🔍 DEBUG: budget_data = {budget_data}")
+            if budget_data:
+                print(f"🔍 DEBUG: budget_data.val() = {budget_data.val()}")
         
         df = pd.DataFrame(data)
         
@@ -120,11 +131,11 @@ def create_line_chart(df, selected_accounts):
     # Skapa subplot för varje valt konto med fast spacing
     num_accounts = len(selected_accounts)
     
-    # Skapa subplot för varje valt konto
+    # Skapa subplot för varje valt konto med bättre spacing
     fig = make_subplots(
         rows=num_accounts, cols=1,
         subplot_titles=[f"{account}" for account in selected_accounts],
-        vertical_spacing=0.08  # Fast spacing som fungerar med många diagram
+        vertical_spacing=0.12  # Mer spacing mellan diagram
     )
     
     colors = {'Faktiskt': '#1f77b4', 'Budget': '#ff7f0e'}
@@ -152,23 +163,23 @@ def create_line_chart(df, selected_accounts):
                     row=i, col=1
                 )
     
-    # Uppdatera layout - alltid samma stora format
+    # Uppdatera layout - alltid samma stora format med bättre spacing
     fig.update_layout(
-        height=350 * num_accounts,  # Alltid 350px per diagram för stor, luftig layout
+        height=400 * num_accounts,  # Högre för bättre spacing
         title_text="Jämförelse: Budget vs Faktiska värden",
         title_x=0.5,
-        title_font_size=20,  # Större titel
+        title_font_size=22,  # Större titel
         showlegend=True,
         legend=dict(
             orientation="h",
             yanchor="bottom",
-            y=1.02,
+            y=1.05,  # Högre upp för bättre spacing
             xanchor="right",
             x=1,
-            font=dict(size=14)  # Större legend-text
+            font=dict(size=16)  # Större legend-text
         ),
-        margin=dict(t=100, b=60, l=80, r=60),  # Större marginaler
-        font=dict(size=12)  # Basfontstorlek för hela diagrammet
+        margin=dict(t=120, b=80, l=100, r=80),  # Större marginaler för bättre spacing
+        font=dict(size=14)  # Större basfontstorlek
     )
     
     # Uppdatera x-axel för alla subplots med större text
