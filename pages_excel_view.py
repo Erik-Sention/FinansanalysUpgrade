@@ -29,10 +29,21 @@ def get_financial_data_with_categories(company_id, year):
         values_data = values_ref.get(firebase_db._get_token())
         all_values = values_data.val() if values_data and values_data.val() else {}
         
-        # Konvertera company_id från string till rätt format
-        # company_id kommer som "KLAB" men i test_data är det "company_1" 
-        company_mapping = {"KLAB": "company_1", "KSAB": "company_2"}
-        firebase_company_id = company_mapping.get(company_id, company_id)
+        # Hämta företag från test_data för att få rätt ID
+        companies_ref = firebase_db.get_ref("test_data/companies")
+        companies_data = companies_ref.get(firebase_db._get_token())
+        companies = companies_data.val() if companies_data and companies_data.val() else {}
+        
+        # Hitta rätt company_id baserat på företagsnamn
+        firebase_company_id = None
+        for comp_id, comp_data in companies.items():
+            if comp_data.get('name') == company_id:
+                firebase_company_id = comp_id
+                break
+        
+        if not firebase_company_id:
+            print(f"❌ Kunde inte hitta företag '{company_id}' i test_data/companies")
+            return pd.DataFrame()
         
         print(f"🔍 Söker efter company_id={company_id} -> firebase_company_id={firebase_company_id}")
         

@@ -430,3 +430,4 @@ def get_accounts_for_category(category_name: str) -> List[Dict]:
         accounts.append(account_data)
     
     return accounts
+
