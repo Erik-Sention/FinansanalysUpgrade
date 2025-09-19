@@ -131,14 +131,18 @@ def get_visualization_data(company_id, year):
         df = pd.DataFrame(data)
         
         if not df.empty:
-            # Extra skydd mot dubletter
-            df = df.drop_duplicates(subset=['account_id','type','month']) \
+            # Extra skydd mot dubletter - mer specifik
+            df = df.drop_duplicates(subset=['account_id', 'type', 'month'], keep='first') \
                    .sort_values(['category','account_name','month'])
             
             # Debug: visa antal rader efter deduplicering
             budget_count = len(df[df['type'] == 'Budget'])
             faktiskt_count = len(df[df['type'] == 'Faktiskt'])
             print(f"DEBUG: Efter deduplicering - Faktiskt: {faktiskt_count}, Budget: {budget_count}")
+            
+            # Debug: visa unika månader för budget
+            budget_months = df[df['type'] == 'Budget']['month'].unique()
+            print(f"DEBUG: Budget månader: {sorted(budget_months)}")
         
         return df
         
@@ -324,6 +328,11 @@ def show():
     st.info(f"📊 **Data laddad:** {len(all_data_df)} rader totalt")
     type_counts = all_data_df['type'].value_counts()
     st.write(f"**Faktiskt:** {type_counts.get('Faktiskt', 0)} rader | **Budget:** {type_counts.get('Budget', 0)} rader")
+    
+    # Mini-debug för budgetrader
+    st.write("DEBUG – Budgetrader:", (all_data_df['type'] == 'Budget').sum())
+    st.write("DEBUG – Unika budgetmånader:", 
+             all_data_df[all_data_df['type']=='Budget']['month'].nunique())
     
     # Få unika konton
     unique_accounts = all_data_df[['account_name', 'category']].drop_duplicates()
