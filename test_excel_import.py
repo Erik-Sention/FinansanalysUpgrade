@@ -19,8 +19,16 @@ def load_excel_data_correct(excel_file_path: str = "Finansiell Data.xlsx"):
         
         st.info(f"📋 Hittade {len(all_sheets)} sheets: {all_sheets}")
         
-        # Välj bara första 2 företag (KLAB och KSAB) och senaste året för varje
-        target_companies = ['KLAB', 'KSAB']  # Bara första 2 företag
+        # Hitta ALLA företag automatiskt från sheet-namn
+        companies_found = set()
+        for sheet_name in all_sheets:
+            parts = sheet_name.split(' ')
+            if len(parts) >= 2 and parts[1].isdigit():
+                companies_found.add(parts[0])
+        
+        target_companies = sorted(list(companies_found))
+        st.success(f"🏢 Hittade {len(target_companies)} företag: {target_companies}")
+        
         selected_sheets = []
         
         for company in target_companies:
@@ -31,7 +39,7 @@ def load_excel_data_correct(excel_file_path: str = "Finansiell Data.xlsx"):
                 latest_sheet = sorted(company_sheets)[-1]
                 selected_sheets.append(latest_sheet)
         
-        st.warning(f"🎯 VÄLJER BARA: {selected_sheets}")
+        st.info(f"🎯 IMPORTERAR ALLA FÖRETAG: {selected_sheets}")
         
         # Kombinera data från valda sheets
         combined_data = []
@@ -692,15 +700,15 @@ def clear_budget_data():
 def show_excel_import_test():
     """Visa Excel-import test-sidan"""
     st.title("📊 Test: Excel-import till Firebase")
-    st.markdown("Importera 2 företag och 1 år som test-data")
+    st.markdown("Importera ALLA företag och 1 år som test-data")
     
     # Info om testet
     with st.expander("ℹ️ Om detta test", expanded=False):
         st.markdown("""
         **Test-import:**
-        - 🏢 **BARA första 2 företag** från din Excel-fil
-        - 📅 **1 år**: 2024 (alla månader som finns)
-        - 📋 **Konton**: Alla konton för de 2 företagen
+        - 🏢 **ALLA företag** från din Excel-fil (automatisk detektering)
+        - 📅 **1 år**: Senaste året för varje företag
+        - 📋 **Konton**: Alla konton för alla företag
         - 💾 **Sparas under**: `test_data/` i Firebase (lätt att rensa!)
         
         **Firebase-struktur:**
