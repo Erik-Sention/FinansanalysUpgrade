@@ -29,6 +29,7 @@ try:
     import pages_auth as auth
     import pages_visualization2 as visualization
     import pages_seasonal_analysis as seasonal_analysis
+    import pages_seasonal_analysis_simple as seasonal_analysis_simple
     from utils_auth import require_authentication, show_user_info, get_auth
     
     # Importera ENDAST från fungerende sidor
@@ -55,7 +56,7 @@ if firebase_auth.is_authenticated():
     # Navigation för inloggade användare (endast fungerende sidor)
     page = st.sidebar.selectbox(
         "Välj sida",
-        ["📊 Test Excel-import", "💰 Budget-redigering", "📈 Visualisering v2", "📅 Säsongsanalys"],
+        ["📊 Test Excel-import", "💰 Budget-redigering", "📈 Visualisering v2", "📅 Säsongsanalys", "📅 Säsongsanalys (Förenklad)"],
         index=0  # Börja med Excel-import
     )
     
@@ -73,6 +74,8 @@ if firebase_auth.is_authenticated():
         visualization.show()
     elif page == "📅 Säsongsanalys":
         seasonal_analysis.show()
+    elif page == "📅 Säsongsanalys (Förenklad)":
+        seasonal_analysis_simple.show()
         
 else:
     # Visa inloggningsalternativ för ej inloggade användare
