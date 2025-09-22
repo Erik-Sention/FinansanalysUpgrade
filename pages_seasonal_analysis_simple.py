@@ -9,6 +9,7 @@ import pandas as pd
 import sys
 from pathlib import Path
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from datetime import datetime
 import numpy as np
 import time
@@ -101,7 +102,7 @@ def get_accounts_list_simple(company_id):
 
 @st.cache_data(ttl=300)
 def get_seasonal_data_simple(company_id, years, selected_accounts):
-    """Hämta data för säsongsanalys - förenklad version"""
+    """Hämta data för säsongsanalys - förenklad version med både faktiska och budgetdata"""
     try:
         firebase_db = get_firebase_db()
 
@@ -116,8 +117,9 @@ def get_seasonal_data_simple(company_id, years, selected_accounts):
         values_data = data_dict.get('values', {})
         accounts_data = data_dict.get('accounts', {})
         categories_data = data_dict.get('categories', {})
+        companies_data = data_dict.get('companies', {})
 
-        # Bygg DataFrame för faktiska värden över alla år - ENDAST valda konton
+        # Bygg DataFrame för både faktiska värden och budgetdata
         data = []
 
         # Skapa account_id lookup för valda konton
@@ -149,10 +151,73 @@ def get_seasonal_data_simple(company_id, years, selected_accounts):
                     'type': 'Faktiskt'
                 })
 
+        # Lägg till budgetvärden för alla valda år - ENDAST valda konton
+        company_name = None
+        for comp_id, comp_info in companies_data.items():
+            if comp_id == company_id:
+                company_name = comp_info.get('name')
+                break
+
+        if company_name:
+            month_mapping = {
+                'Jan':1,'Feb':2,'Mar':3,'Apr':4,'Maj':5,'May':5,'Jun':6,'Jul':7,
+                'Aug':8,'Sep':9,'Okt':10,'Oct':10,'Nov':11,'Dec':12
+            }
+
+            # Hämta budget endast för valda konton
+            for account_name in selected_accounts:
+                for year in years:
+                    budget_path = f"SIMPLE_BUDGETS/{company_name}/{year}/{account_name}/monthly_values"
+                    budget_ref = firebase_db.get_ref(budget_path)
+                    budget_data = budget_ref.get(firebase_db._get_token())
+
+                    monthly_values = budget_data.val() if (budget_data and budget_data.val()) else {}
+
+                    if not monthly_values:
+                        continue
+
+                    # Hitta account_id för detta kontonamn
+                    account_id = None
+                    for aid, account_info in accounts_data.items():
+                        if (account_info.get('company_id') == company_id and
+                            account_info.get('name') == account_name):
+                            account_id = aid
+                            break
+
+                    if not account_id:
+                        continue
+
+                    category_id = accounts_data.get(account_id, {}).get('category_id')
+                    category_info = categories_data.get(category_id, {})
+
+                    for month_name, amount in monthly_values.items():
+                        m = month_mapping.get(month_name)
+                        if not m or not amount:
+                            continue
+                        try:
+                            amt = float(amount)
+                        except (TypeError, ValueError):
+                            continue
+
+                        data.append({
+                            'account_id': account_id,
+                            'account_name': account_name,
+                            'category': category_info.get('name', 'Okänd kategori'),
+                            'month': m,
+                            'amount': amt,
+                            'year': year,
+                            'type': 'Budget'
+                        })
+
         df = pd.DataFrame(data)
 
         if not df.empty:
-            df = df.sort_values(['category','account_name','year','month'])
+            # Dedupe budget-rader på kontonamn+månad+år
+            mask = df['type'] == 'Budget'
+            df_budget = df[mask].drop_duplicates(subset=['account_name','month','year'])
+            df_actual = df[~mask]
+            df = pd.concat([df_actual, df_budget], ignore_index=True) \
+                   .sort_values(['category','account_name','year','month'])
 
         return df
 
@@ -161,7 +226,7 @@ def get_seasonal_data_simple(company_id, years, selected_accounts):
         return pd.DataFrame()
 
 def calculate_seasonal_metrics_simple(df, selected_accounts):
-    """Beräkna säsongsmätvärden för valda konton - förenklad version"""
+    """Beräkna säsongsmätvärden för valda konton - förenklad version med både faktiska och budgetdata"""
     if df.empty or not selected_accounts:
         return pd.DataFrame()
 
@@ -186,46 +251,80 @@ def calculate_seasonal_metrics_simple(df, selected_accounts):
         if account_data.empty:
             continue
 
+        # Separera faktiska och budgetdata
+        actual_data = account_data[account_data['type'] == 'Faktiskt']
+        budget_data = account_data[account_data['type'] == 'Budget']
+
         # Beräkna månadsmedel för faktiska värden
-        monthly_stats = account_data.groupby('month').agg({
-            'amount': ['mean', 'min', 'max', 'count']
-        }).round(2)
+        if not actual_data.empty:
+            monthly_stats = actual_data.groupby('month').agg({
+                'amount': ['mean', 'min', 'max', 'count']
+            }).round(2)
 
-        monthly_stats.columns = ['monthly_avg', 'min', 'max', 'data_points']
-        monthly_stats = monthly_stats.reset_index()
+            monthly_stats.columns = ['monthly_avg', 'min', 'max', 'data_points']
+            monthly_stats = monthly_stats.reset_index()
 
-        # Beräkna bas (medel av alla månadsmedel)
-        base = monthly_stats['monthly_avg'].mean()
+            # Beräkna bas (medel av alla månadsmedel)
+            base = monthly_stats['monthly_avg'].mean()
 
-        # Beräkna säsongsindex och andel av år
-        monthly_stats['seasonal_index'] = (monthly_stats['monthly_avg'] / base * 100).round(1)
-        yearly_total = monthly_stats['monthly_avg'].sum()
-        monthly_stats['yearly_percentage'] = (monthly_stats['monthly_avg'] / yearly_total * 100).round(1)
+            # Beräkna säsongsindex och andel av år
+            monthly_stats['seasonal_index'] = (monthly_stats['monthly_avg'] / base * 100).round(1)
+            yearly_total = monthly_stats['monthly_avg'].sum()
+            monthly_stats['yearly_percentage'] = (monthly_stats['monthly_avg'] / yearly_total * 100).round(1)
 
-        # Beräkna 3-månaders glidande medel
-        monthly_stats['ma3'] = monthly_stats['monthly_avg'].rolling(window=3, center=True).mean().round(2)
+            # Beräkna 3-månaders glidande medel
+            monthly_stats['ma3'] = monthly_stats['monthly_avg'].rolling(window=3, center=True).mean().round(2)
 
-        # Kombinera data
-        for _, row in monthly_stats.iterrows():
-            month = row['month']
+            # Lägg till budgetvärden om de finns
+            budget_monthly = budget_data.groupby('month')['amount'].mean().reset_index()
+            budget_monthly.columns = ['month', 'budget_avg']
 
-            results.append({
-                'account_name': account,
-                'month': month,
-                'month_name': month_names[month],
-                'monthly_avg': row['monthly_avg'],
-                'seasonal_index': row['seasonal_index'],
-                'yearly_percentage': row['yearly_percentage'],
-                'ma3': row['ma3'],
-                'min': row['min'],
-                'max': row['max'],
-                'data_points': row['data_points']
-            })
+            # Kombinera data
+            for _, row in monthly_stats.iterrows():
+                month = row['month']
+                budget_amount = budget_monthly[budget_monthly['month'] == month]['budget_avg'].iloc[0] if not budget_monthly.empty and month in budget_monthly['month'].values else 0
+
+                results.append({
+                    'account_name': account,
+                    'month': month,
+                    'month_name': month_names[month],
+                    'monthly_avg': row['monthly_avg'],
+                    'budget_avg': budget_amount,
+                    'seasonal_index': row['seasonal_index'],
+                    'yearly_percentage': row['yearly_percentage'],
+                    'ma3': row['ma3'],
+                    'min': row['min'],
+                    'max': row['max'],
+                    'data_points': row['data_points'],
+                    'has_actual_data': True
+                })
+
+        elif not budget_data.empty:
+            # Om inga faktiska data finns, använd budget som referens
+            budget_monthly = budget_data.groupby('month')['amount'].mean().reset_index()
+            budget_monthly.columns = ['month', 'budget_avg']
+
+            for _, row in budget_monthly.iterrows():
+                month = row['month']
+                results.append({
+                    'account_name': account,
+                    'month': month,
+                    'month_name': month_names[month],
+                    'monthly_avg': row['budget_avg'],
+                    'budget_avg': row['budget_avg'],
+                    'seasonal_index': 100,
+                    'yearly_percentage': 0,
+                    'ma3': row['budget_avg'],
+                    'min': row['budget_avg'],
+                    'max': row['budget_avg'],
+                    'data_points': 1,
+                    'has_actual_data': False
+                })
 
     return pd.DataFrame(results)
 
 def create_simple_chart(seasonal_df, chart_type):
-    """Skapa förenklat säsongsanalys-diagram"""
+    """Skapa förenklat säsongsanalys-diagram med både faktiska och budgetdata"""
     if seasonal_df.empty:
         st.warning("Ingen säsongsdata att visa")
         return
@@ -247,14 +346,37 @@ def create_simple_chart(seasonal_df, chart_type):
             account_data = seasonal_df[seasonal_df['account_name'] == account]
             color = colors[i % len(colors)]
 
-            fig.add_trace(go.Scatter(
-                x=account_data['month_name'],
-                y=account_data['monthly_avg'],
-                mode='lines+markers',
-                name=f"{account}",
-                line=dict(color=color, width=3),
-                marker=dict(size=8)
-            ))
+            # Visa faktiska värden om de finns
+            if account_data['has_actual_data'].iloc[0]:
+                fig.add_trace(go.Scatter(
+                    x=account_data['month_name'],
+                    y=account_data['monthly_avg'],
+                    mode='lines+markers',
+                    name=f"{account} (Faktiskt)",
+                    line=dict(color=color, width=3),
+                    marker=dict(size=8)
+                ))
+
+                # Visa budget som referenslinje om den finns
+                if account_data['budget_avg'].iloc[0] > 0:
+                    fig.add_trace(go.Scatter(
+                        x=account_data['month_name'],
+                        y=account_data['budget_avg'],
+                        mode='lines',
+                        name=f"{account} (Budget)",
+                        line=dict(color=color, width=2, dash='dot'),
+                        opacity=0.6
+                    ))
+            else:
+                # Endast budget tillgänglig
+                fig.add_trace(go.Scatter(
+                    x=account_data['month_name'],
+                    y=account_data['budget_avg'],
+                    mode='lines+markers',
+                    name=f"{account} (Budget)",
+                    line=dict(color=color, width=3, dash='dot'),
+                    marker=dict(size=8)
+                ))
 
         fig.update_layout(
             title="📅 Säsongsanalys - Kombinerat",
@@ -286,15 +408,40 @@ def create_simple_chart(seasonal_df, chart_type):
             account_data = seasonal_df[seasonal_df['account_name'] == account]
             color = colors[0]
 
-            fig.add_trace(go.Scatter(
-                x=account_data['month_name'],
-                y=account_data['monthly_avg'],
-                mode='lines+markers',
-                name=f"{account}",
-                line=dict(color=color, width=3),
-                marker=dict(size=8),
-                showlegend=(i == 1)
-            ), row=i, col=1)
+            # Visa faktiska värden om de finns
+            if account_data['has_actual_data'].iloc[0]:
+                fig.add_trace(go.Scatter(
+                    x=account_data['month_name'],
+                    y=account_data['monthly_avg'],
+                    mode='lines+markers',
+                    name=f"{account} (Faktiskt)",
+                    line=dict(color=color, width=3),
+                    marker=dict(size=8),
+                    showlegend=(i == 1)
+                ), row=i, col=1)
+
+                # Visa budget som referenslinje om den finns
+                if account_data['budget_avg'].iloc[0] > 0:
+                    fig.add_trace(go.Scatter(
+                        x=account_data['month_name'],
+                        y=account_data['budget_avg'],
+                        mode='lines',
+                        name=f"{account} (Budget)",
+                        line=dict(color=colors[1], width=2, dash='dot'),
+                        opacity=0.6,
+                        showlegend=(i == 1)
+                    ), row=i, col=1)
+            else:
+                # Endast budget tillgänglig
+                fig.add_trace(go.Scatter(
+                    x=account_data['month_name'],
+                    y=account_data['budget_avg'],
+                    mode='lines+markers',
+                    name=f"{account} (Budget)",
+                    line=dict(color=color, width=3, dash='dot'),
+                    marker=dict(size=8),
+                    showlegend=(i == 1)
+                ), row=i, col=1)
 
         fig.update_layout(
             title="📅 Säsongsanalys - Separata diagram",
@@ -488,18 +635,27 @@ def show():
     # Visa prestanda-mätningar
     st.markdown("#### 🔍 Prestanda & Data-kvalitet")
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         st.metric("Firebase-reads", "1")
 
     with col2:
-        actual_accounts = seasonal_metrics_df['account_name'].nunique()
+        actual_accounts = seasonal_metrics_df[seasonal_metrics_df['has_actual_data'] == True]['account_name'].nunique()
         st.metric("Konton med faktiska data", actual_accounts)
 
     with col3:
+        budget_accounts = seasonal_metrics_df[seasonal_metrics_df['budget_avg'] > 0]['account_name'].nunique()
+        st.metric("Konton med budgetdata", budget_accounts)
+
+    with col4:
         total_data_points = seasonal_metrics_df['data_points'].sum()
         st.metric("Totalt antal datapunkter", total_data_points)
+
+    # Visa konton utan faktiska data
+    no_actual_data = seasonal_metrics_df[seasonal_metrics_df['has_actual_data'] == False]['account_name'].unique()
+    if len(no_actual_data) > 0:
+        st.warning(f"⚠️ Konton utan faktiska data (visar endast budget): {', '.join(no_actual_data)}")
 
     # Skapa visualiseringar baserat på vald värdevisning
     if value_display == "Absolut (tkr)":
