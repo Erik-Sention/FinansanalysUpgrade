@@ -60,36 +60,42 @@ def get_company_and_years_info(company_id):
 
 @st.cache_data(ttl=300)
 def get_accounts_list(company_id):
-    """Hämta endast kontolista för företaget - lättvikt"""
+    """Hämta endast kontolista för företaget - lättvikt med samma sortering som budget-sidan"""
     try:
         firebase_db = get_firebase_db()
-        
+
         # Hämta endast konton och kategorier
         test_data_ref = firebase_db.get_ref("test_data")
         test_data = test_data_ref.get(firebase_db._get_token())
-        
+
         if not test_data or not test_data.val():
             return pd.DataFrame()
-        
+
         data_dict = test_data.val()
         accounts_data = data_dict.get('accounts', {})
         categories_data = data_dict.get('categories', {})
-        
+
         # Bygg kontolista
         accounts_list = []
         for account_id, account_info in accounts_data.items():
             if account_info.get('company_id') == company_id:
                 category_id = account_info.get('category_id')
                 category_info = categories_data.get(category_id, {})
-                
+
                 accounts_list.append({
                     'account_id': account_id,
                     'account_name': account_info.get('name', 'Okänt konto'),
                     'category': category_info.get('name', 'Okänd kategori')
                 })
+
+        df = pd.DataFrame(accounts_list)
         
-        return pd.DataFrame(accounts_list)
-        
+        # Sortera som budget-sidan: först kategori, sedan kontonamn
+        if not df.empty:
+            df = df.sort_values(['category', 'account_name']).reset_index(drop=True)
+
+        return df
+
     except Exception as e:
         st.error(f"Fel vid hämtning av kontolista: {e}")
         return pd.DataFrame()
@@ -765,7 +771,11 @@ def show():
                 # Debug: visa vilka konton som finns
                 st.write(f"**Debug:** Hittade {len(category_accounts)} konton i kategori '{category}'")
                 if category_accounts:
-                    st.write(f"Konton: {', '.join(category_accounts[:3])}{'...' if len(category_accounts) > 3 else ''}")
+                    st.write(f"Konton: {', '.join(category_accounts[:5])}{'...' if len(category_accounts) > 5 else ''}")
+                    # Visa alla konton i en expander för fullständig lista
+                    with st.expander(f"Visa alla {len(category_accounts)} konton i {category}", expanded=False):
+                        for i, account in enumerate(category_accounts):
+                            st.write(f"{i+1}. {account}")
                 
                 cols = st.columns(2)
                 
@@ -872,6 +882,14 @@ def show():
         st.write(f"- Konton: {selected_accounts}")
         st.write(f"- Budgetreferens: {show_budget_ref}")
         
+        # Debug: visa alla tillgängliga konton för jämförelse
+        all_accounts_df = get_accounts_list(selected_company_id)
+        if not all_accounts_df.empty:
+            st.write(f"**Tillgängliga konton i databasen:**")
+            for category in all_accounts_df['category'].unique():
+                category_accounts = all_accounts_df[all_accounts_df['category'] == category]['account_name'].tolist()
+                st.write(f"- **{category}**: {', '.join(category_accounts[:5])}{'...' if len(category_accounts) > 5 else ''}")
+        
         # Hämta säsongsdata - ENDAST för valda konton
         with st.spinner("🔄 Hämtar data för valda konton..."):
             seasonal_data_df, performance_metrics = get_seasonal_data_optimized(
@@ -884,13 +902,26 @@ def show():
             st.write(f"Konton med data: {seasonal_data_df['account_name'].unique().tolist()}")
             st.write(f"År med data: {seasonal_data_df['year'].unique().tolist()}")
             st.write(f"Typer: {seasonal_data_df['type'].unique().tolist()}")
-        
-        if seasonal_data_df.empty:
+        else:
+            # Detaljerad felsökning när ingen data hittas
             st.warning("Ingen säsongsdata hittad för valda konton och år")
+            st.write("**Detaljerad felsökning:**")
+            
+            # Kontrollera om konton finns i databasen
+            if not all_accounts_df.empty:
+                available_account_names = all_accounts_df['account_name'].tolist()
+                missing_accounts = [acc for acc in selected_accounts if acc not in available_account_names]
+                if missing_accounts:
+                    st.write(f"❌ **Konton som INTE finns i databasen:** {missing_accounts}")
+                else:
+                    st.write("✅ **Alla valda konton finns i databasen**")
+            
+            # Kontrollera om det finns data för valda år
             st.write("**Möjliga orsaker:**")
-            st.write("- Konton finns inte i databasen")
             st.write("- Inga faktiska värden för valda år")
+            st.write("- Konton finns inte i databasen (se ovan)")
             st.write("- Felaktiga kontonamn (kontrollera stavning)")
+            st.write("- Data finns inte i Firebase 'test_data/values'")
             return
         
         # Beräkna säsongsmätvärden
