@@ -756,7 +756,9 @@ def show():
                 
                 for j, account in enumerate(category_accounts):
                     with cols[j % 2]:
-                        if st.checkbox(account, key=f"seasonal_account_{category}_{account}"):
+                        # Skapa unik nyckel med kategori och index för att undvika dubbletter
+                        unique_key = f"seasonal_account_{category}_{j}_{account}"
+                        if st.checkbox(account, key=unique_key):
                             selected_accounts.append(account)
     else:
         category = categories[0]
