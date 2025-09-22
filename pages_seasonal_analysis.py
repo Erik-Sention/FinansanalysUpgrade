@@ -744,13 +744,28 @@ def show():
     categories = accounts_df['category'].unique()
     
     if len(categories) > 1:
-        tabs = st.tabs([f"📊 {category}" for category in categories])
+        # Fixa namn på tabs - kostnader och intäkter är bytta!
+        tab_names = []
+        for category in categories:
+            if "kostnad" in category.lower() or "cost" in category.lower():
+                tab_names.append(f"💰 Intäkter")  # Detta är faktiskt intäkter
+            elif "intäkt" in category.lower() or "revenue" in category.lower():
+                tab_names.append(f"💸 Kostnader")  # Detta är faktiskt kostnader
+            else:
+                tab_names.append(f"📊 {category}")
+        
+        tabs = st.tabs(tab_names)
         
         selected_accounts = []
         
         for i, category in enumerate(categories):
             with tabs[i]:
                 category_accounts = accounts_df[accounts_df['category'] == category]['account_name'].tolist()
+                
+                # Debug: visa vilka konton som finns
+                st.write(f"**Debug:** Hittade {len(category_accounts)} konton i kategori '{category}'")
+                if category_accounts:
+                    st.write(f"Konton: {', '.join(category_accounts[:3])}{'...' if len(category_accounts) > 3 else ''}")
                 
                 cols = st.columns(2)
                 
@@ -850,14 +865,32 @@ def show():
         )
     
     if run_analysis:
+        # Debug: visa vad som söks efter
+        st.info(f"🔍 **Debug:** Söker efter data för:")
+        st.write(f"- Företag ID: {selected_company_id}")
+        st.write(f"- År: {selected_years}")
+        st.write(f"- Konton: {selected_accounts}")
+        st.write(f"- Budgetreferens: {show_budget_ref}")
+        
         # Hämta säsongsdata - ENDAST för valda konton
         with st.spinner("🔄 Hämtar data för valda konton..."):
             seasonal_data_df, performance_metrics = get_seasonal_data_optimized(
                 selected_company_id, selected_years, selected_accounts, show_budget_ref
             )
         
+        # Debug: visa vad som hittades
+        st.write(f"🔍 **Debug:** Hittade {len(seasonal_data_df)} rader data")
+        if not seasonal_data_df.empty:
+            st.write(f"Konton med data: {seasonal_data_df['account_name'].unique().tolist()}")
+            st.write(f"År med data: {seasonal_data_df['year'].unique().tolist()}")
+            st.write(f"Typer: {seasonal_data_df['type'].unique().tolist()}")
+        
         if seasonal_data_df.empty:
             st.warning("Ingen säsongsdata hittad för valda konton och år")
+            st.write("**Möjliga orsaker:**")
+            st.write("- Konton finns inte i databasen")
+            st.write("- Inga faktiska värden för valda år")
+            st.write("- Felaktiga kontonamn (kontrollera stavning)")
             return
         
         # Beräkna säsongsmätvärden
