@@ -617,6 +617,18 @@ def show():
     with st.spinner("🔄 Hämtar säsongsdata..."):
         seasonal_data_df = get_seasonal_data_simple(selected_company_id, selected_years, selected_accounts)
 
+    # Debug: visa vad som hittades
+    st.write(f"🔍 **Debug:** Hittade {len(seasonal_data_df)} rader data")
+    if not seasonal_data_df.empty:
+        st.write(f"Konton med data: {seasonal_data_df['account_name'].unique().tolist()}")
+        st.write(f"År med data: {seasonal_data_df['year'].unique().tolist()}")
+        st.write(f"Typer: {seasonal_data_df['type'].unique().tolist()}")
+        
+        # Visa faktiska vs budgetdata
+        actual_count = len(seasonal_data_df[seasonal_data_df['type'] == 'Faktiskt'])
+        budget_count = len(seasonal_data_df[seasonal_data_df['type'] == 'Budget'])
+        st.write(f"**Faktiskt:** {actual_count} rader | **Budget:** {budget_count} rader")
+
     if seasonal_data_df.empty:
         st.warning("Ingen säsongsdata hittad för valda konton och år")
         st.write("**Möjliga orsaker:**")
