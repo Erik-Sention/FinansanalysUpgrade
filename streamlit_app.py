@@ -31,8 +31,6 @@ try:
     from utils_auth import require_authentication, show_user_info, get_auth
     
     # Importera ENDAST från fungerende sidor
-    import pages_excel_view as excel_view  # Root-level version som använder pyrebase
-    from test_input_page import show_test_input
     from test_excel_import import show_excel_import_test
     from simple_budget_page import show_simple_budget_page
     
@@ -56,8 +54,8 @@ if firebase_auth.is_authenticated():
     # Navigation för inloggade användare (endast fungerende sidor)
     page = st.sidebar.selectbox(
         "Välj sida",
-        ["🧪 Test-input (Firebase)", "📊 Test Excel-import", "💰 Budget-redigering", "💾 Finansdatabas (Pyrebase)", "📈 Visualisering v2"],
-        index=1  # Börja med Excel-import
+        ["📊 Test Excel-import", "💰 Budget-redigering", "📈 Visualisering v2"],
+        index=0  # Börja med Excel-import
     )
     
     st.sidebar.markdown("---")
@@ -66,14 +64,10 @@ if firebase_auth.is_authenticated():
     require_authentication()
     
     # Visa vald sida
-    if page == "🧪 Test-input (Firebase)":
-        show_test_input()
-    elif page == "📊 Test Excel-import":
+    if page == "📊 Test Excel-import":
         show_excel_import_test()
     elif page == "💰 Budget-redigering":
         show_simple_budget_page()
-    elif page == "💾 Finansdatabas (Pyrebase)":
-        excel_view.show()
     elif page == "📈 Visualisering v2":
         visualization.show()
         

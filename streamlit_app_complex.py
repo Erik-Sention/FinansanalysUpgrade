@@ -27,7 +27,6 @@ except ImportError:
 # Importera moduler från root-nivån
 try:
     import pages_auth as auth
-    import pages_excel_view as excel_view  
     import pages_visualization as visualization
     from utils_auth import require_authentication, show_user_info, get_auth
     
@@ -54,8 +53,8 @@ if firebase_auth.is_authenticated():
     # Navigation för inloggade användare
     page = st.sidebar.selectbox(
         "Välj sida",
-        ["💾 Finansdatabas", "💾 Finansdatabas (Optimerad)", "📈 Visualisering"],
-        index=1  # Börja med optimerad version
+        ["💾 Finansdatabas (Optimerad)", "📈 Visualisering"],
+        index=0  # Börja med optimerad version
     )
     
     st.sidebar.markdown("---")
@@ -64,9 +63,7 @@ if firebase_auth.is_authenticated():
     require_authentication()
     
     # Visa vald sida
-    if page == "💾 Finansdatabas":
-        excel_view.show()
-    elif page == "💾 Finansdatabas (Optimerad)":
+    if page == "💾 Finansdatabas (Optimerad)":
         show_optimized()
     elif page == "📈 Visualisering":
         visualization.show()
