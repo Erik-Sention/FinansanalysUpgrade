@@ -28,22 +28,29 @@ from models_firebase_database import get_firebase_db
 
 @st.cache_data(ttl=300)
 def get_company_and_years_info(company_id):
-    """Hämta endast företagsinfo och tillgängliga år - lättvikt med samma datakälla som Excel-sidan"""
+    """Hämta endast företagsinfo och tillgängliga år - lättvikt med samma datakälla som nya Excel-sidan"""
     try:
         firebase_db = get_firebase_db()
 
-        # Använd samma datakälla som Excel-sidan: companies och datasets
-        companies = firebase_db.get_companies()
-        datasets = firebase_db.get_datasets(company_id)
+        # Använd samma datakälla som nya Excel-sidan: test_data
+        test_data_ref = firebase_db.get_ref("test_data")
+        test_data = test_data_ref.get(firebase_db._get_token())
+
+        if not test_data or not test_data.val():
+            return None, []
+
+        data_dict = test_data.val()
+        companies_data = data_dict.get('companies', {})
+        values_data = data_dict.get('values', {})
 
         # Hämta företagsinfo
-        company_info = companies.get(company_id)
+        company_info = companies_data.get(company_id)
 
-        # Hämta tillgängliga år från datasets
+        # Hämta tillgängliga år
         years_found = set()
-        for dataset_id, dataset_data in datasets.items():
-            if dataset_data.get('company_id') == company_id:
-                years_found.add(dataset_data.get('year'))
+        for value_id, value_data in values_data.items():
+            if value_data.get('company_id') == company_id:
+                years_found.add(value_data.get('year'))
 
         return company_info, sorted(list(years_found))
 
@@ -53,20 +60,27 @@ def get_company_and_years_info(company_id):
 
 @st.cache_data(ttl=300)
 def get_accounts_list_simple(company_id):
-    """Hämta kontolista för företaget - förenklad version med samma datakälla som Excel-sidan"""
+    """Hämta kontolista för företaget - förenklad version med samma datakälla som nya Excel-sidan"""
     try:
         firebase_db = get_firebase_db()
 
-        # Använd samma datakälla som Excel-sidan: accounts och categories
-        accounts = firebase_db.get_accounts()
-        categories = firebase_db.get_account_categories()
+        # Använd samma datakälla som nya Excel-sidan: test_data
+        test_data_ref = firebase_db.get_ref("test_data")
+        test_data = test_data_ref.get(firebase_db._get_token())
+
+        if not test_data or not test_data.val():
+            return pd.DataFrame()
+
+        data_dict = test_data.val()
+        accounts_data = data_dict.get('accounts', {})
+        categories_data = data_dict.get('categories', {})
 
         # Bygg kontolista
         accounts_list = []
-        for account_id, account_info in accounts.items():
+        for account_id, account_info in accounts_data.items():
             if account_info.get('company_id') == company_id:
                 category_id = account_info.get('category_id')
-                category_info = categories.get(category_id, {})
+                category_info = categories_data.get(category_id, {})
 
                 accounts_list.append({
                     'account_id': account_id,
@@ -88,66 +102,58 @@ def get_accounts_list_simple(company_id):
 
 @st.cache_data(ttl=300)
 def get_seasonal_data_simple(company_id, years, selected_accounts):
-    """Hämta data för säsongsanalys - förenklad version med både faktiska och budgetdata från samma källa som Excel-sidan"""
+    """Hämta data för säsongsanalys - förenklad version med både faktiska och budgetdata från samma källa som nya Excel-sidan"""
     try:
         firebase_db = get_firebase_db()
 
-        # Använd samma datakälla som Excel-sidan: datasets och values
-        data = []
+        # Använd samma datakälla som nya Excel-sidan: test_data
+        test_data_ref = firebase_db.get_ref("test_data")
+        test_data = test_data_ref.get(firebase_db._get_token())
 
-        # Hämta datasets för företaget
-        datasets = firebase_db.get_datasets(company_id)
-        
-        # Hämta referensdata
-        accounts = firebase_db.get_accounts()
-        categories = firebase_db.get_account_categories()
+        if not test_data or not test_data.val():
+            return pd.DataFrame()
+
+        data_dict = test_data.val()
+        values_data = data_dict.get('values', {})
+        accounts_data = data_dict.get('accounts', {})
+        categories_data = data_dict.get('categories', {})
+        companies_data = data_dict.get('companies', {})
+
+        # Bygg DataFrame för både faktiska värden och budgetdata
+        data = []
 
         # Skapa account_id lookup för valda konton
         selected_account_ids = set()
-        for account_id, account_info in accounts.items():
+        for account_id, account_info in accounts_data.items():
             if (account_info.get('company_id') == company_id and
                 account_info.get('name') in selected_accounts):
                 selected_account_ids.add(account_id)
 
-        # Hämta faktiska värden för alla valda år
-        for year in years:
-            # Hitta dataset för detta år
-            target_dataset_id = None
-            for dataset_id, dataset_data in datasets.items():
-                if dataset_data.get('year') == year:
-                    target_dataset_id = dataset_id
-                    break
+        # Lägg till faktiska värden för alla valda år - ENDAST valda konton
+        for value_id, value_data in values_data.items():
+            if (value_data.get('company_id') == company_id and
+                value_data.get('year') in years and
+                value_data.get('type') == 'actual' and
+                value_data.get('account_id') in selected_account_ids):
 
-            if not target_dataset_id:
-                continue
+                account_id = value_data.get('account_id')
+                account_info = accounts_data.get(account_id, {})
+                category_id = account_info.get('category_id')
+                category_info = categories_data.get(category_id, {})
 
-            # Hämta värden för dataset
-            values = firebase_db.get_values(dataset_id=target_dataset_id)
+                data.append({
+                    'account_id': account_id,
+                    'account_name': account_info.get('name', 'Okänt konto'),
+                    'category': category_info.get('name', 'Okänd kategori'),
+                    'month': value_data.get('month'),
+                    'amount': value_data.get('amount', 0),
+                    'year': value_data.get('year'),
+                    'type': 'Faktiskt'
+                })
 
-            # Lägg till faktiska värden
-            for value_id, value_data in values.items():
-                if (value_data.get('value_type') == 'faktiskt' and
-                    value_data.get('account_id') in selected_account_ids):
-
-                    account_id = value_data.get('account_id')
-                    account_data = accounts.get(account_id, {})
-                    category_id = account_data.get('category_id')
-                    category_data = categories.get(category_id, {})
-
-                    data.append({
-                        'account_id': account_id,
-                        'account_name': account_data.get('name', 'Okänt konto'),
-                        'category': category_data.get('name', 'Okänd kategori'),
-                        'month': value_data.get('month'),
-                        'amount': value_data.get('amount', 0),
-                        'year': year,
-                        'type': 'Faktiskt'
-                    })
-
-        # Lägg till budgetvärden för alla valda år
+        # Lägg till budgetvärden för alla valda år - ENDAST valda konton
         company_name = None
-        companies = firebase_db.get_companies()
-        for comp_id, comp_info in companies.items():
+        for comp_id, comp_info in companies_data.items():
             if comp_id == company_id:
                 company_name = comp_info.get('name')
                 break
@@ -172,7 +178,7 @@ def get_seasonal_data_simple(company_id, years, selected_accounts):
 
                     # Hitta account_id för detta kontonamn
                     account_id = None
-                    for aid, account_info in accounts.items():
+                    for aid, account_info in accounts_data.items():
                         if (account_info.get('company_id') == company_id and
                             account_info.get('name') == account_name):
                             account_id = aid
@@ -181,8 +187,8 @@ def get_seasonal_data_simple(company_id, years, selected_accounts):
                     if not account_id:
                         continue
 
-                    category_id = accounts.get(account_id, {}).get('category_id')
-                    category_info = categories.get(category_id, {})
+                    category_id = accounts_data.get(account_id, {}).get('category_id')
+                    category_info = categories_data.get(category_id, {})
 
                     for month_name, amount in monthly_values.items():
                         m = month_mapping.get(month_name)
@@ -460,18 +466,21 @@ def show():
     st.title("📅 Säsongsanalys (Förenklad)")
     st.markdown("**Analysera säsongsmönster för intäkter per månad**")
 
-    # Hämta företag från samma datakälla som Excel-sidan
+    # Hämta företag från samma datakälla som nya Excel-sidan
     try:
         firebase_db = get_firebase_db()
-        companies = firebase_db.get_companies()
+        test_data_ref = firebase_db.get_ref("test_data")
+        test_data = test_data_ref.get(firebase_db._get_token())
 
         companies_list = []
-        for company_id, company_info in companies.items():
-            companies_list.append({
-                'id': company_id,
-                'name': company_info['name'],
-                'location': company_info['location']
-            })
+        if test_data and test_data.val():
+            companies_data = test_data.val().get('companies', {})
+            for company_id, company_info in companies_data.items():
+                companies_list.append({
+                    'id': company_id,
+                    'name': company_info['name'],
+                    'location': company_info['location']
+                })
     except Exception as e:
         st.error(f"Fel vid hämtning av företag: {e}")
         companies_list = []
